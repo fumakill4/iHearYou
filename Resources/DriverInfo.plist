@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>iHearYouMic</string>
+<key>CFBundleIdentifier</key><string>com.i729.iHearYou.driver</string>
+<key>CFBundleName</key><string>iHearYou Microphone</string>
+<key>CFBundlePackageType</key><string>BNDL</string>
+<key>CFBundleShortVersionString</key><string>1.0.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>CFPlugInFactories</key><dict><key>B2076575-08EA-4C68-82D2-B8E95BAC1BC0</key><string>IHDriver_Create</string></dict>
+<key>CFPlugInTypes</key><dict><key>443ABAB8-E7B3-491A-B985-BEB9187030DB</key><array><string>B2076575-08EA-4C68-82D2-B8E95BAC1BC0</string></array></dict>
+<key>NSHumanReadableCopyright</key><string>Driver derived from BlackHole © Existential Audio Inc. iHearYou configuration: i729. GPLv3.</string>
+</dict></plist>

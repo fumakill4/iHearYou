@@ -1,0 +1,6 @@
+#!/bin/bash
+# iHearYou | Signature: i729
+# Installer executes as root. Reload CoreAudio after installing only our driver.
+set -e
+/usr/bin/killall coreaudiod 2>/dev/null || true
+exit 0

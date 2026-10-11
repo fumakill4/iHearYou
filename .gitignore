@@ -1,0 +1,24 @@
+.build/
+.swiftpm/
+dist/
+build/
+.DS_Store
+*.wav
+*.raw
+*.f32
+*.webm
+*.m4a
+*.ogg
+*.log
+**/__pycache__/
+.env
+.env.*
+*.pem
+*.key
+Vendor/**/.git/
+Vendor/DeepFilterNet/
+Vendor/rnnoise/
+Vendor/Sherpa/lib/
+Vendor/DPDFNet/*.onnx
+Sources/DeepFilter/
+ChatGPT Image*.png
