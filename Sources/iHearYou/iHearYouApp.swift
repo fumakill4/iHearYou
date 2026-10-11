@@ -18,6 +18,7 @@ import Combine
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = AppModel.shared
         NSApp.setActivationPolicy(.accessory)
+        installMenus()
         statusControl = StatusControl(model: model)
         floatingControl = FloatingControl(model: model)
         model.onShowSettings = { [weak self] in self?.showSettings() }
@@ -39,7 +40,42 @@ import Combine
             DispatchQueue.main.async { [weak self] in self?.statusControl?.show() }
         }
     }
-    private func showSettings() {
+    private func installMenus() {
+        let menuBar = NSMenu()
+        let appItem = NSMenuItem()
+        menuBar.addItem(appItem)
+        let appMenu = NSMenu(title: "iHearYou")
+        appItem.submenu = appMenu
+        func add(_ title: String, _ action: Selector, key: String = "", modifiers: NSEvent.ModifierFlags = .command) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.target = self; item.keyEquivalentModifierMask = modifiers
+            appMenu.addItem(item)
+        }
+        add("Buka kontrol iHearYou", #selector(openControls))
+        add("Settings…", #selector(showSettings), key: ",")
+        appMenu.addItem(.separator())
+        add("Aktifkan / hentikan mikrofon", #selector(toggleMicrophone), key: "m", modifiers: [.command, .shift])
+        add("Rekam / simpan suara", #selector(toggleRecording), key: "r")
+        appMenu.addItem(.separator())
+        let quit = NSMenuItem(title: "Keluar iHearYou", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.target = NSApp; appMenu.addItem(quit)
+        let fileItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        fileItem.submenu = fileMenu; menuBar.addItem(fileItem)
+        let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: "Edit")
+        for (title, action, key) in [("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+            editMenu.addItem(NSMenuItem(title: title, action: NSSelectorFromString(action), keyEquivalent: key))
+        }
+        editItem.submenu = editMenu; menuBar.addItem(editItem)
+        NSApp.mainMenu = menuBar
+    }
+    @objc private func openControls() { AppModel.shared.showMainWindow() }
+    @objc private func toggleMicrophone() { AppModel.shared.toggle() }
+    @objc private func toggleRecording() { if AppModel.shared.active { AppModel.shared.toggleRecording() } }
+
+    @objc private func showSettings() {
         statusControl?.close()
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
@@ -78,7 +114,11 @@ import Combine
         popover.contentSize = NSSize(width: 360, height: 646)
         popover.contentViewController = NSHostingController(rootView:
             CompactControlView(openSettings: { [weak model] in model?.showSettings() }).environmentObject(model))
-        model.onShowControls = { [weak self] in self?.show() }
+        // Open after the originating mouse event ends so a floating-panel click
+        // is not interpreted as an outside click that immediately closes it.
+        model.onShowControls = { [weak self] in
+            DispatchQueue.main.async { [weak self] in self?.show() }
+        }
         model.$active.removeDuplicates().sink { [weak self] active in
             self?.item.button?.image = NSImage(systemSymbolName: active ? "waveform.circle.fill" : "waveform.circle",
                                                accessibilityDescription: "iHearYou")
@@ -100,24 +140,13 @@ import Combine
     func close() { popover.performClose(nil) }
 }
 
-@main struct iHearYouApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
-    @StateObject private var model = AppModel.shared
-    var body: some Scene {
-        Settings {
-            ContentView().environmentObject(model).preferredColorScheme(model.appearance.colorScheme)
-        }
-        .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button("Settings…") { model.showSettings() }.keyboardShortcut(",", modifiers: .command)
-            }
-            CommandGroup(after: .appSettings) {
-                Button("Buka kontrol iHearYou") { model.showMainWindow() }
-                Button(model.active ? "Hentikan mikrofon" : "Aktifkan mikrofon") { model.toggle() }
-                    .keyboardShortcut("m", modifiers: [.command, .shift])
-                Button(model.recording ? "Simpan rekaman" : "Rekam suara") { model.toggleRecording() }
-                    .keyboardShortcut("r", modifiers: [.command]).disabled(!model.active)
-            }
-        }
+// AppKit owns the sole settings window; no automatic SwiftUI Settings scene is created.
+@main enum iHearYouApplication {
+    @MainActor static func main() {
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
+        application.delegate = delegate
+        application.setActivationPolicy(.accessory)
+        withExtendedLifetime(delegate) { application.run() }
     }
 }
