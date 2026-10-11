@@ -3,12 +3,20 @@ import AppKit
 import SwiftUI
 import Combine
 
+private final class FloatingPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+private final class FloatingHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 @MainActor final class FloatingControl {
     private var panel: NSPanel?
     private var subscription: AnyCancellable?
     private var appearanceSubscription: AnyCancellable?
     init(model: AppModel) {
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 60, height: 164),
+        let panel = FloatingPanel(contentRect: NSRect(x: 0, y: 0, width: 60, height: 164),
                             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .floating
         panel.title = "iHearYou — Floating"
@@ -19,7 +27,7 @@ import Combine
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.contentView = NSHostingView(rootView: FloatingView().environmentObject(model))
+        panel.contentView = FloatingHostingView(rootView: FloatingView().environmentObject(model))
         panel.setAccessibilityLabel("iHearYou floating control")
         let defaults = UserDefaults.standard
         let saved = NSPoint(x: defaults.double(forKey: "floatingX"), y: defaults.double(forKey: "floatingY"))
