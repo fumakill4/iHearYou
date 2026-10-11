@@ -3,6 +3,9 @@
 dist/
 build/
 .DS_Store
+# Finder custom-icon metadata and the redundant PNG preview stay local.
+Icon?
+Real app logo.png
 *.wav
 *.raw
 *.f32

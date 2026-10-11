@@ -91,7 +91,7 @@ struct CompactControlView: View {
                         Text(model.starting ? "Memulai…" : model.active ? "Mikrofon aktif" : "Aktifkan mikrofon")
                         Spacer()
                         if model.active { Text(model.sessionElapsed).monospacedDigit() }
-                    }.font(.system(size: 12, weight: .medium)).padding(.vertical, 4)
+                    }.font(.system(size: 12, weight: .medium)).foregroundStyle(.white).padding(.vertical, 4)
                 }.buttonStyle(.borderedProminent).controlSize(.large)
                     .disabled(!model.canStart && !model.active)
                     .help(model.active ? "Hentikan mikrofon" : "Aktifkan mikrofon")
@@ -99,11 +99,12 @@ struct CompactControlView: View {
                     Text("Microphone").font(.system(size: 11, weight: .medium))
                     HStack(spacing: 8) {
                         Image(systemName: "mic.fill").frame(width: 20)
-                        Picker("Microphone", selection: $model.inputUID) {
+                        Picker("Microphone", selection: Binding(get: { model.inputUID }, set: { model.selectInput($0) })) {
                             if model.microphones.isEmpty { Text("Mikrofon tidak ditemukan").tag("") }
-                            ForEach(model.microphones) { Text($0.name).tag($0.uid) }
+                            if !model.inputUID.isEmpty && model.selectedInput == nil { Text("Mikrofon terpilih terputus").tag(model.inputUID) }
+                            ForEach(model.microphones) { Text($0.selectionLabel).tag($0.uid) }
                         }.labelsHidden().frame(maxWidth: .infinity)
-                            .disabled(model.active || model.starting)
+                            .disabled(model.starting).help(model.selectedInput?.selectionLabel ?? "Pilih mikrofon")
                     }.padding(9).background(Palette.surface, in: RoundedRectangle(cornerRadius: 7))
                         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Palette.line, lineWidth: 1))
                 }
@@ -111,18 +112,31 @@ struct CompactControlView: View {
                     Text("Speaker").font(.system(size: 11, weight: .medium))
                     HStack(spacing: 8) {
                         Image(systemName: "speaker.wave.2.fill").frame(width: 20)
-                        Picker("Speaker untuk dengar langsung", selection: $model.monitorUID) {
+                        Picker("Speaker untuk dengar langsung", selection: Binding(get: { model.monitorUID }, set: { model.selectMonitor($0) })) {
                             if model.headphones.isEmpty { Text("Output tidak ditemukan").tag("") }
-                            ForEach(model.headphones) { Text($0.name).tag($0.uid) }
+                            if !model.monitorUID.isEmpty && model.selectedMonitor == nil { Text("Output terpilih terputus").tag(model.monitorUID) }
+                            ForEach(model.headphones) { Text($0.selectionLabel).tag($0.uid) }
                         }.labelsHidden().frame(maxWidth: .infinity)
-                            .disabled(model.active || model.starting)
+                            .disabled(model.starting).help(model.selectedMonitor?.selectionLabel ?? "Pilih output")
                     }.padding(9).background(Palette.surface, in: RoundedRectangle(cornerRadius: 7))
                         .overlay(RoundedRectangle(cornerRadius: 7).stroke(Palette.line, lineWidth: 1))
                 }
-                Toggle("Dengar langsung", isOn: $model.monitoring)
-                    .font(.system(size: 12)).toggleStyle(.switch).disabled(model.active || model.starting)
+                Toggle("Dengar langsung", isOn: Binding(get: { model.monitoring }, set: { model.setMonitoring($0) }))
+                    .font(.system(size: 12)).toggleStyle(.switch).disabled(model.starting)
                 Text("Gunakan headphone untuk mendengar suara sendiri. Input browser tetap iHearYou Microphone.")
                     .font(.system(size: 10)).foregroundStyle(Palette.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("Muat ulang perangkat") { model.refreshDevices() }.font(.system(size: 11))
+                    .buttonStyle(.bordered).disabled(model.starting)
+                Toggle("Speaker iPhone via Safari", isOn: Binding(get: { model.phoneSpeakerEnabled }, set: { model.setPhoneSpeakerEnabled($0) }))
+                    .font(.system(size: 11)).toggleStyle(.switch)
+                if model.phoneSpeakerEnabled {
+                    HStack {
+                        Text(model.phoneSpeakerConnected ? "Penerima terhubung" : "Menunggu Safari iPhone")
+                            .font(.system(size: 10)).foregroundStyle(Palette.secondary)
+                        Spacer()
+                        Button("Tautan") { model.screen = .microphone; model.showSettings() }.buttonStyle(.bordered).font(.system(size: 10))
+                    }
+                }
                 HStack(alignment: .top, spacing: 7) {
                     Image(systemName: "arrow.triangle.branch").font(.system(size: 11))
                     Text(model.virtualMic == nil ? "Driver mikrofon belum siap. Buka Settings → Panduan." : "Output: iHearYou Microphone")
@@ -163,7 +177,7 @@ struct CompactControlView: View {
         HStack {
             Text("Dibuat oleh i729").font(.system(size: 11, weight: .medium))
             Spacer()
-            Text("1.1 · Tanpa trial").font(.system(size: 10)).foregroundStyle(Palette.secondary)
+            Text("\(model.appVersion) · Tanpa trial").font(.system(size: 10)).foregroundStyle(Palette.secondary)
         }.padding(.horizontal, 20).padding(.vertical, 13).background(Palette.sidebar)
     }
     private var separator: some View { Rectangle().fill(Palette.line).frame(height: 1) }
@@ -193,6 +207,9 @@ struct CompactControlView: View {
         Task { @MainActor in
             if !model.active { await model.start() }
             guard model.active else { return }
+            guard model.virtualMic != nil else {
+                model.error = "Pasang driver iHearYou Microphone untuk memakai suara bersih di MargVoice."; return
+            }
             NSWorkspace.shared.open(URL(string: "https://margvoice.com/projects/reading")!)
         }
     }

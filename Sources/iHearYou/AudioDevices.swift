@@ -10,8 +10,34 @@ struct AudioDevice: Identifiable, Hashable {
     let inputChannels: Int
     let outputChannels: Int
     let transport: UInt32
-    var isVirtual: Bool { transport == kAudioDeviceTransportTypeVirtual || name.lowercased().contains("ihearyou") }
+    let isAlive: Bool
+    var isVirtual: Bool { transport == kAudioDeviceTransportTypeVirtual }
     var isOurMic: Bool { uid == "iHearYouMic_UID" }
+    var isOurLoopback: Bool { ["iHearYouMic_UID", "iHearYouMic_2_UID"].contains(uid) }
+    var connectionLabel: String {
+        switch transport {
+        case kAudioDeviceTransportTypeBuiltIn: return "Bawaan Mac"
+        case kAudioDeviceTransportTypeUSB: return "USB"
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return "Bluetooth"
+        case kAudioDeviceTransportTypeContinuityCaptureWired: return "iPhone · USB"
+        case kAudioDeviceTransportTypeContinuityCaptureWireless: return "iPhone · Nirkabel"
+        case kAudioDeviceTransportTypeHDMI: return "HDMI"
+        case kAudioDeviceTransportTypeDisplayPort: return "DisplayPort"
+        case kAudioDeviceTransportTypeAirPlay: return "AirPlay"
+        case kAudioDeviceTransportTypeThunderbolt: return "Thunderbolt"
+        case kAudioDeviceTransportTypeVirtual: return "Virtual"
+        case kAudioDeviceTransportTypeAggregate: return "Aggregate"
+        default: return ""
+        }
+    }
+    var selectionLabel: String { connectionLabel.isEmpty ? name : "\(name) · \(connectionLabel)" }
+}
+
+extension Array where Element == AudioDevice {
+    // A driver can expose real hardware through a software transport. Channel
+    // capability and liveness determine usability; never feed our own output back in.
+    var inputCandidates: [AudioDevice] { filter { $0.isAlive && $0.inputChannels > 0 && !$0.isOurLoopback } }
+    var outputCandidates: [AudioDevice] { filter { $0.isAlive && $0.outputChannels > 0 && !$0.isOurLoopback } }
 }
 
 enum AudioDevices {
@@ -29,22 +55,50 @@ enum AudioDevices {
         AudioObjectGetPropertyData(id, &a, 0, nil, &size, &value)
         return value
     }
+    static func isPrivateAggregate(_ id: AudioDeviceID) -> Bool {
+        guard number(id, kAudioDevicePropertyTransportType) == kAudioDeviceTransportTypeAggregate else { return false }
+        var a = address(kAudioAggregateDevicePropertyComposition), value: Unmanaged<CFDictionary>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFDictionary>?>.size)
+        guard AudioObjectGetPropertyData(id, &a, 0, nil, &size, &value) == noErr, let value else { return false }
+        let composition = value.takeRetainedValue() as NSDictionary
+        return (composition[kAudioAggregateDeviceIsPrivateKey] as? NSNumber)?.boolValue == true
+    }
     static func channels(_ id: AudioDeviceID, _ scope: AudioObjectPropertyScope) -> Int {
         var a = address(kAudioDevicePropertyStreamConfiguration, scope), size: UInt32 = 0
+        if AudioObjectGetPropertyDataSize(id, &a, 0, nil, &size) == noErr, size > 0 {
+            let memory = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+            defer { memory.deallocate() }
+            if AudioObjectGetPropertyData(id, &a, 0, nil, &size, memory) == noErr {
+                let count = UnsafeMutableAudioBufferListPointer(memory.assumingMemoryBound(to: AudioBufferList.self))
+                    .reduce(0) { $0 + Int($1.mNumberChannels) }
+                if count > 0 { return count }
+            }
+        }
+        // Some external devices advertise streams before configuring their idle
+        // buffers. Read actual stream formats; an absent output remains absent.
+        a = address(kAudioDevicePropertyStreams, scope); size = 0
         guard AudioObjectGetPropertyDataSize(id, &a, 0, nil, &size) == noErr, size > 0 else { return 0 }
-        let memory = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
-        defer { memory.deallocate() }
-        guard AudioObjectGetPropertyData(id, &a, 0, nil, &size, memory) == noErr else { return 0 }
-        return UnsafeMutableAudioBufferListPointer(memory.assumingMemoryBound(to: AudioBufferList.self)).reduce(0) { $0 + Int($1.mNumberChannels) }
+        var streams = [AudioStreamID](repeating: 0, count: Int(size) / MemoryLayout<AudioStreamID>.size)
+        guard AudioObjectGetPropertyData(id, &a, 0, nil, &size, &streams) == noErr else { return 0 }
+        return streams.reduce(0) { total, stream in
+            var property = address(kAudioStreamPropertyVirtualFormat)
+            var format = AudioStreamBasicDescription(), bytes = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+            guard AudioObjectGetPropertyData(stream, &property, 0, nil, &bytes, &format) == noErr else { return total }
+            return total + Int(format.mChannelsPerFrame)
+        }
     }
     static func list() -> [AudioDevice] {
         var a = address(kAudioHardwarePropertyDevices), size: UInt32 = 0
         guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &a, 0, nil, &size) == noErr else { return [] }
         var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &a, 0, nil, &size, &ids) == noErr else { return [] }
-        return ids.map { AudioDevice(id: $0, uid: string($0, kAudioDevicePropertyDeviceUID), name: string($0, kAudioObjectPropertyName),
+        // AVAudioEngine creates private clock-management aggregates. They are
+        // implementation devices, not extra microphones for the user to select.
+        return ids.filter { number($0, kAudioDevicePropertyIsHidden) == 0 && !isPrivateAggregate($0) }
+            .map { AudioDevice(id: $0, uid: string($0, kAudioDevicePropertyDeviceUID), name: string($0, kAudioObjectPropertyName),
                                     inputChannels: channels($0, kAudioDevicePropertyScopeInput), outputChannels: channels($0, kAudioDevicePropertyScopeOutput),
-                                    transport: number($0, kAudioDevicePropertyTransportType)) }.filter { !$0.name.isEmpty }
+                                    transport: number($0, kAudioDevicePropertyTransportType),
+                                    isAlive: number($0, kAudioDevicePropertyDeviceIsAlive) != 0) }.filter { !$0.name.isEmpty }
     }
     static var defaultInput: AudioDeviceID { number(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice) }
     static var defaultOutput: AudioDeviceID { number(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice) }

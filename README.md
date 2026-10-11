@@ -2,7 +2,7 @@
 
 Dibuat oleh **i729**. Signature: i729.
 
-Aplikasi macOS untuk meredam noise mikrofon secara lokal, merekam WAV, dan mengirim hasil ke browser melalui mikrofon virtual. Tidak ada akun, trial, subscription, telemetry, atau unggahan audio. Implementasi independen memakai model DPDFNet2 resmi; tidak memakai kode, model, atau aset Krisp.
+Aplikasi macOS untuk meredam noise mikrofon secara lokal, merekam WAV, dan mengirim hasil ke browser melalui mikrofon virtual. Tidak ada akun, trial, subscription, telemetry, atau layanan unggahan audio. Mode speaker iPhone opsional mengirim hasil langsung melalui jaringan lokal. Implementasi independen memakai model DPDFNet2 resmi; tidak memakai kode, model, atau aset Krisp.
 
 ## Penggunaan
 
@@ -16,7 +16,19 @@ Settings menyediakan **System, Light, Dark**, floating control, gain, perangkat,
 
 Driver mikrofon dipasang melalui installer macOS di Panduan. Installer meminta autentikasi admin untuk menyalin driver ke `/Library/Audio/Plug-Ins/HAL/iHearYouMic.driver` dan memuat ulang CoreAudio. Tutup rekaman/panggilan sebelum memasang. Jika driver sudah tersedia, tidak perlu memasang ulang saat aplikasi diperbarui. Menutup jendela membiarkan aplikasi berjalan di menu bar.
 
-**Dengar langsung** memakai headphone untuk menghindari feedback; pilih perangkat sebelum memulai. Pilihan perangkat terkunci selama capture. Perubahan perangkat menghentikan sesi dengan pesan.
+**Dengar langsung** memakai headphone untuk menghindari feedback. Mikrofon dan speaker dapat diganti saat capture; aplikasi menghentikan sesi lama lalu memulai dengan perangkat pilihan. Jika sedang merekam WAV, file lama disimpan dan rekaman berlanjut di file baru. Perangkat yang terputus menghentikan sesi dengan pesan; aplikasi tidak diam-diam meneruskan capture dari mikrofon lain.
+
+## iPhone, Bluetooth, dan kabel
+
+Picker menampilkan input/output hidup yang diberikan macOS, termasuk mikrofon iPhone Continuity, Bluetooth, USB, earphone kabel, dan perangkat audio lain. Label menunjukkan jenis koneksi. Daftar diperbarui setiap dua detik dan lewat notifikasi CoreAudio; tombol **Muat ulang perangkat** tersedia. Perangkat internal/tersembunyi dan loopback iHearYou tidak dijadikan sumber input atau monitor.
+
+Mikrofon iPhone memakai [Continuity Camera](https://support.apple.com/102546), lewat USB atau nirkabel dengan Wi-Fi dan Bluetooth aktif serta Apple Account yang sama. Izinkan Trust jika iPhone tersambung melalui USB. Pasangkan perangkat Bluetooth di macOS atau sambungkan kabel sebelum memilihnya. Format Bluetooth bergantung pada profil perangkat; pipeline meresampling input ke 48 kHz.
+
+Untuk **speaker bawaan iPhone**, pilih mikrofon Mac/USB/Bluetooth lalu aktifkan **Speaker iPhone via Safari** di Settings. Sambungkan kedua perangkat ke Wi-Fi yang sama, pindai QR atau salin tautan, dan ketuk **Dengarkan** di Safari iPhone. Biarkan layar dan tab terbuka. Penerima memiliki volume, meter, dan tombol Putuskan. Ini memutar hasil mikrofon iHearYou, bukan seluruh audio sistem Mac. Mikrofon virtual untuk browser Mac tetap tersedia.
+
+Continuity mengekspos mikrofon iPhone, bukan speaker pada perangkat yang diuji. Membuka kunci iPhone menjeda Continuity, sehingga mode Safari memakai mikrofon Mac/USB/Bluetooth. Memilih mikrofon Continuity mematikan penerima Safari. Gunakan earphone atau volume rendah untuk menghindari feedback.
+
+Penerima hanya aktif setelah dinyalakan, memakai alamat IPv4 jaringan lokal dan tautan acak baru setiap aktivasi, serta menerima satu tab sekaligus. Audio PCM dikirim langsung melalui HTTP lokal tanpa enkripsi transport; gunakan jaringan yang dipercaya dan perlakukan tautan sebagai akses mendengarkan. Mematikan mode menutup koneksi dan membatalkan tautan. Tidak ada endpoint upload, akses rekaman tersimpan, atau layanan cloud. Penyangga audio dibatasi agar koneksi lambat tidak menumpuk memori atau delay tanpa batas.
 
 ## Browser dan privasi
 
@@ -41,7 +53,17 @@ Apple Silicon Mac, macOS 14+, Xcode Command Line Tools (Swift 5.9+), Python 3 st
 swift test
 ```
 
-Build memverifikasi SHA-256 dan mengambil model/runtime resmi jika belum tersedia. Model DPDFNet2, sherpa-onnx 1.13.8 dan ONNX Runtime 1.28.2 disalin ke bundle; tidak bergantung pada path workspace saat dipasang. `icon.png` dikonversi menjadi iconset macOS. Driver universal arm64/x86_64 dibangun dari source BlackHole. Aplikasi dan library ditandatangani ad-hoc untuk penggunaan lokal; distribusi publik memerlukan Developer ID dan notarization.
+Build memverifikasi SHA-256 dan mengambil model/runtime resmi jika belum tersedia. Model DPDFNet2, sherpa-onnx 1.13.8 dan ONNX Runtime 1.28.2 disalin ke bundle; tidak bergantung pada path workspace saat dipasang. **Real app logo.icns** dipakai langsung untuk ikon aplikasi. Driver universal arm64/x86_64 dibangun dari source BlackHole. Debug record dibuang dari binary aplikasi sebelum packaging.
+
+Hasil di `dist/`:
+
+- `iHearYou.app`: aplikasi lengkap.
+- `iHearYou-1.2.0.pkg`: installer aplikasi ke `/Applications` dan driver ke `/Library/Audio/Plug-Ins/HAL`; meminta admin dan memuat ulang CoreAudio.
+- `iHearYou-1.2.0-macOS-arm64.zip`: aplikasi tanpa pemasangan driver.
+- `iHearYouMicrophone.pkg`: driver saja, untuk aplikasi yang sudah terpasang.
+- `SHA256SUMS.txt`: checksum artefak Releases.
+
+Unduh melalui [GitHub Releases](https://github.com/fumakill4/iHearYou/releases). Aplikasi memerlukan Apple Silicon dan macOS 14+. App/library memakai signature ad-hoc; installer belum ditandatangani Developer ID atau dinotarize. Gatekeeper dapat meminta pengguna mengizinkan pembukaan secara manual. Tutup panggilan/rekaman sebelum memasang installer lengkap karena CoreAudio dimuat ulang.
 
 Source dependency, versi, lisensi, dan checksum dicatat di `THIRD_PARTY_NOTICES.md`. Eksperimen DeepFilterNet/RNNoise di workspace bukan bagian engine build saat ini. Rekaman, model/runtime unduhan, log, cache build, dan data lokal diabaikan Git. Repo menyertakan model card, license, header C, serta script unduhan dengan checksum.
 

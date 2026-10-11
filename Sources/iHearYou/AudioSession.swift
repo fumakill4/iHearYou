@@ -23,6 +23,9 @@ final class AudioSession {
     private var clean = [Float](repeating: 0, count: 480)
     private var notifications: [NSObjectProtocol] = []
     var onDeviceFailure: ((String) -> Void)?
+    // Processed mono PCM at 48 kHz, invoked on the bounded inference queue.
+    // A receiver must copy into its own bounded mailbox and return promptly.
+    var onProcessedAudio: (([Float]) -> Void)?
 
     func start(input: AudioDevice, virtual: AudioDevice?, monitor: AudioDevice?, enabled: Bool, strength: Float, gain: Float, gate: Bool) throws {
         stop()
@@ -42,7 +45,7 @@ final class AudioSession {
         do {
             if let virtual { virtualOutput = try VirtualOutput(device: virtual, processor: p) }
             if let monitor {
-                guard !monitor.isVirtual else { throw AudioFailure.message("Untuk dengar langsung, pilih headphone fisik.") }
+                guard !monitor.isOurLoopback else { throw AudioFailure.message("Pilih output selain mikrofon virtual iHearYou agar tidak terjadi feedback.") }
                 monitorEngine = try outputEngine(device: monitor, processor: p, monitor: true)
             }
             // Capture only channel one. Do not average stereo channels that may be out of phase.
@@ -90,6 +93,7 @@ final class AudioSession {
         for _ in 0..<8 {
             guard ih_next_frame(p, &raw, &clean) != 0 else { break }
             ih_publish(p, &clean, virtualOutput != nil ? 1 : 0, monitorEngine != nil ? 1 : 0)
+            onProcessedAudio?(clean)
             if let writer {
                 do { try writer.write(original: raw, processed: clean) }
                 catch {

@@ -10,8 +10,11 @@ rm -rf dist/iHearYou.app
 mkdir -p dist/iHearYou.app/Contents/{MacOS,Resources,Frameworks} build/driver-root/Library/Audio/Plug-Ins/HAL/iHearYouMic.driver/Contents/{MacOS,Resources}
 binary_dir="$(swift build -c release --show-bin-path)"
 cp "$binary_dir/iHearYou" dist/iHearYou.app/Contents/MacOS/iHearYou
+# Public artifacts carry no compiler debug records or absolute source paths.
+strip -S dist/iHearYou.app/Contents/MacOS/iHearYou
 cp Resources/Info.plist dist/iHearYou.app/Contents/Info.plist
 cp Resources/BrowserRecorder.html dist/iHearYou.app/Contents/Resources/
+cp Resources/PhoneSpeaker.html dist/iHearYou.app/Contents/Resources/
 cp build/iHearYou.icns dist/iHearYou.app/Contents/Resources/
 cp Vendor/DPDFNet/dpdfnet2_48khz_hr.onnx dist/iHearYou.app/Contents/Resources/
 cp Vendor/DPDFNet/LICENSE dist/iHearYou.app/Contents/Resources/DPDFNet-LICENSE.txt
@@ -42,4 +45,5 @@ pkgbuild --root build/driver-root --identifier com.i729.iHearYou.driver \
 cp dist/iHearYouMicrophone.pkg dist/iHearYou.app/Contents/Resources/
 codesign --force --sign - --identifier com.i729.iHearYou dist/iHearYou.app
 codesign --verify --deep --strict dist/iHearYou.app
+./scripts/package-release.sh
 printf 'Ready: %s/dist/iHearYou.app\n' "$PWD"

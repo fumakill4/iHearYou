@@ -27,6 +27,9 @@ enum SuppressionMode: String, CaseIterable {
     @Published var mode: SuppressionMode { didSet { saveSettings() } }
     @Published var gain: Double { didSet { saveSettings() } }
     @Published var monitoring = false
+    @Published var phoneSpeakerEnabled = false
+    @Published var phoneSpeakerURLs: [URL] = []
+    @Published var phoneSpeakerConnected = false
     @Published var active = false
     @Published var starting = false
     @Published var recording = false
@@ -48,15 +51,21 @@ enum SuppressionMode: String, CaseIterable {
     @Published var inputDrops: UInt64 = 0
     private let session = AudioSession()
     private let browserRecorder = BrowserRecorderServer()
+    private let phoneSpeaker = PhoneSpeakerServer()
     private var sessionStarted: Date?
+    private var runningInputID: AudioDeviceID?
+    private var runningMonitorID: AudioDeviceID?
     private var timer: Timer?
+    private var lastDeviceRefresh = Date()
     private var deviceListener: AudioObjectPropertyListenerBlock?
     private var player: AVAudioPlayer?
-    var microphones: [AudioDevice] { devices.filter { $0.inputChannels > 0 && !$0.isVirtual } }
-    var headphones: [AudioDevice] { devices.filter { $0.outputChannels > 0 && !$0.isVirtual } }
+    var microphones: [AudioDevice] { devices.inputCandidates }
+    var headphones: [AudioDevice] { devices.outputCandidates }
     var virtualMic: AudioDevice? { devices.first { $0.isOurMic && $0.outputChannels > 0 } }
     var selectedInput: AudioDevice? { microphones.first { $0.uid == inputUID } }
+    var selectedMonitor: AudioDevice? { headphones.first { $0.uid == monitorUID } }
     var canStart: Bool { selectedInput != nil && !starting }
+    var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development" }
     var elapsed: String { String(format: "%02d:%02d", Int(seconds) / 60, Int(seconds) % 60) }
     var sessionElapsed: String { String(format: "%02d:%02d", Int(sessionSeconds) / 60, Int(sessionSeconds) % 60) }
     var permissionDenied: Bool { AVCaptureDevice.authorizationStatus(for: .audio) == .denied || AVCaptureDevice.authorizationStatus(for: .audio) == .restricted }
@@ -71,20 +80,29 @@ enum SuppressionMode: String, CaseIterable {
         showFloating = defaults.object(forKey: "showFloating") as? Bool ?? true
         appearance = AppAppearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
         refreshDevices(); refreshRecordings()
+        let receiver = phoneSpeaker
+        session.onProcessedAudio = { samples in receiver.publish(samples) }
+        receiver.onState = { [weak self] state in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.phoneSpeakerURLs = state.urls
+                self.phoneSpeakerConnected = state.connected
+                if let message = state.error { self.error = message }
+            }
+        }
         session.onDeviceFailure = { [weak self] message in
             guard let self, self.active else { return }
             self.stop(); self.error = message; self.refreshDevices()
         }
-        timer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { [weak self] _ in
+        let meterTimer = Timer(timeInterval: 0.07, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.updateMeters() }
         }
+        timer = meterTimer
+        RunLoop.main.add(meterTimer, forMode: .common)
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.refreshDevices()
-                if self.active && self.selectedInput == nil {
-                    self.stop(); self.error = "Mikrofon terputus. Sambungkan kembali lalu aktifkan mikrofon."
-                }
             }
         }
         deviceListener = listener
@@ -93,11 +111,102 @@ enum SuppressionMode: String, CaseIterable {
     }
     func refreshDevices() {
         devices = AudioDevices.list()
-        if !active && !microphones.contains(where: { $0.uid == inputUID }) {
+        let inputLost = selectedInput == nil || selectedInput?.id != runningInputID
+        let monitorLost = selectedMonitor == nil || selectedMonitor?.id != runningMonitorID
+        if active && (inputLost || (monitoring && monitorLost)) {
+            let hadRecording = recording
+            stop()
+            error = (inputLost ? "Mikrofon terputus." : "Perangkat dengar langsung terputus.")
+                + (hadRecording ? " Rekaman sudah disimpan." : "")
+                + " Pilih perangkat lalu aktifkan kembali mikrofon."
+        }
+        // Keep the device identities used by a running session. A missing unused
+        // monitor stays selected until the user changes it or the session stops.
+        guard !active && !starting else { return }
+        if !microphones.contains(where: { $0.uid == inputUID }) {
             inputUID = (microphones.first { $0.id == AudioDevices.defaultInput } ?? microphones.first)?.uid ?? ""
         }
         if !headphones.contains(where: { $0.uid == monitorUID }) {
             monitorUID = (headphones.first { $0.id == AudioDevices.defaultOutput } ?? headphones.first)?.uid ?? ""
+        }
+    }
+    func selectInput(_ uid: String) {
+        guard !starting, uid != inputUID else { return }
+        guard let device = microphones.first(where: { $0.uid == uid }) else {
+            error = "Mikrofon tidak tersedia. Muat ulang perangkat lalu pilih kembali."; return
+        }
+        let usesContinuity = device.transport == kAudioDeviceTransportTypeContinuityCaptureWired
+            || device.transport == kAudioDeviceTransportTypeContinuityCaptureWireless
+        let receiverStopped = phoneSpeakerEnabled && usesContinuity
+        if receiverStopped { setPhoneSpeakerEnabled(false) }
+        changeHardware(description: "Mikrofon diganti ke \(device.name)." + (receiverStopped ? " Penerima Safari dimatikan agar iPhone dapat dipakai sebagai mikrofon." : "")) { inputUID = uid }
+    }
+    func selectMonitor(_ uid: String) {
+        guard !starting, uid != monitorUID else { return }
+        guard let device = headphones.first(where: { $0.uid == uid }) else {
+            error = "Output tidak tersedia. Muat ulang perangkat lalu pilih kembali."; return
+        }
+        changeHardware(description: "Speaker diganti ke \(device.name).") { monitorUID = uid }
+    }
+    func setMonitoring(_ enabled: Bool) {
+        guard !starting, enabled != monitoring else { return }
+        guard !enabled || selectedMonitor != nil else {
+            error = "Pilih speaker atau headphone yang tersedia sebelum mengaktifkan dengar langsung."; return
+        }
+        changeHardware(description: enabled ? "Dengar langsung diaktifkan." : "Dengar langsung dimatikan.") { monitoring = enabled }
+    }
+    func setPhoneSpeakerEnabled(_ enabled: Bool) {
+        guard enabled != phoneSpeakerEnabled else { return }
+        error = nil
+        if enabled {
+            guard selectedInput?.transport != kAudioDeviceTransportTypeContinuityCaptureWired,
+                  selectedInput?.transport != kAudioDeviceTransportTypeContinuityCaptureWireless else {
+                error = "Untuk Safari pada iPhone yang sama, pilih mikrofon Mac/USB/Bluetooth dahulu. Membuka Safari menjeda mikrofon Continuity iPhone."; return
+            }
+            do {
+                try phoneSpeaker.start()
+                phoneSpeakerEnabled = true
+                notice = "Buka tautan speaker di Safari iPhone pada Wi-Fi yang sama, lalu ketuk Dengarkan."
+            } catch { self.error = error.localizedDescription }
+        } else {
+            phoneSpeakerEnabled = false; phoneSpeakerURLs = []; phoneSpeakerConnected = false
+            phoneSpeaker.stop()
+        }
+    }
+    func copyPhoneSpeakerURL() {
+        guard let url = phoneSpeakerURLs.first else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        notice = "Tautan speaker disalin. Buka di Safari iPhone pada Wi-Fi yang sama."
+    }
+    func openPhoneSpeakerPreview() {
+        guard let url = phoneSpeakerURLs.first else { return }
+        NSWorkspace.shared.open(url)
+    }
+    private func changeHardware(description: String, apply: () -> Void) {
+        let resumeSession = active
+        let resumeRecording = recording
+        if resumeSession { stop() }
+        apply()
+        error = nil
+        guard resumeSession else { return }
+        // Lock selectors immediately, before the asynchronous restart can yield.
+        starting = true
+        Task { @MainActor [self] in
+            defer { starting = false }
+            await startSession()
+            guard active else {
+                if resumeRecording { notice = "Rekaman sebelumnya sudah disimpan. Mikrofon belum berhasil diaktifkan kembali." }
+                return
+            }
+            if resumeRecording {
+                toggleRecording()
+                notice = recording
+                    ? description + " Rekaman sebelumnya disimpan; perekaman berlanjut di file baru."
+                    : description + " Rekaman sebelumnya disimpan. Rekaman baru belum dimulai."
+            } else {
+                notice = description + (virtualMic == nil ? " Pasang driver untuk memakai output di browser." : "")
+            }
         }
     }
     private func saveSettings() {
@@ -110,6 +219,10 @@ enum SuppressionMode: String, CaseIterable {
         guard !starting && !active else { return }
         starting = true; error = nil; notice = nil
         defer { starting = false }
+        await startSession()
+    }
+    private func startSession() async {
+        error = nil; notice = nil
         stopPlayback()
         let permitted: Bool
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -122,11 +235,12 @@ enum SuppressionMode: String, CaseIterable {
             return
         }
         refreshDevices()
-        guard let input = selectedInput else { error = "Tidak ada mikrofon fisik. Sambungkan mikrofon lalu tekan Muat ulang perangkat."; return }
+        guard let input = selectedInput else { error = "Mikrofon terpilih tidak tersedia. Sambungkan mikrofon lalu tekan Muat ulang perangkat."; return }
         do {
-            let monitor = monitoring ? headphones.first { $0.uid == monitorUID } : nil
+            let monitor = monitoring ? selectedMonitor : nil
             if monitoring && monitor == nil { throw AudioFailure.message("Pilih headphone untuk dengar langsung.") }
             try session.start(input: input, virtual: virtualMic, monitor: monitor, enabled: suppression, strength: mode.strength, gain: Float(gain), gate: mode == .strong)
+            runningInputID = input.id; runningMonitorID = monitor?.id
             active = true
             sessionStarted = Date(); sessionSeconds = 0
             if virtualMic == nil { notice = "Mode rekaman siap. Pasang driver untuk memakai iHearYou di aplikasi meeting." }
@@ -135,6 +249,7 @@ enum SuppressionMode: String, CaseIterable {
     func stop() {
         let wasRecording = recording
         session.stop(); active = false; recording = false; seconds = 0
+        runningInputID = nil; runningMonitorID = nil
         sessionStarted = nil; sessionSeconds = 0
         inputDB = -90; outputDB = -90; voice = 0
         originalHistory = [Float](repeating: 0, count: 72); cleanHistory = originalHistory
@@ -151,6 +266,10 @@ enum SuppressionMode: String, CaseIterable {
         }
     }
     private func updateMeters() {
+        if Date().timeIntervalSince(lastDeviceRefresh) >= 2 {
+            lastDeviceRefresh = Date()
+            refreshDevices()
+        }
         if let sessionStarted { sessionSeconds = Date().timeIntervalSince(sessionStarted) }
         if active, let snapshot = session.snapshot() {
             inputDB = snapshot.stats.input_db; outputDB = snapshot.stats.output_db; voice = snapshot.stats.voice_probability
@@ -225,5 +344,5 @@ enum SuppressionMode: String, CaseIterable {
             }
         }
     }
-    func shutdown() { stop(); stopPlayback(); browserRecorder.stop(); timer?.invalidate() }
+    func shutdown() { stop(); stopPlayback(); browserRecorder.stop(); phoneSpeaker.stop(); timer?.invalidate() }
 }

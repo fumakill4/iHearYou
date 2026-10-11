@@ -1,0 +1,124 @@
+<!doctype html>
+<!-- iHearYou | Signature: i729 -->
+<html lang="id">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>iHearYou — Speaker iPhone</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#20232a;background:#f4f2ed;color-scheme:light dark}
+*{box-sizing:border-box}body{max-width:600px;margin:48px auto;padding:0 22px}h1{font-size:30px;margin-bottom:8px}
+p{line-height:1.6}section{padding:24px;background:#fff;border:1px solid #dedbe4;border-radius:12px;margin:24px 0}
+button{font:inherit;padding:13px 20px;border:1px solid #6050bb;border-radius:7px;cursor:pointer;background:#614ac2;color:white}
+button:disabled{opacity:.45;cursor:default}.controls{display:flex;gap:10px;flex-wrap:wrap}#stop{background:transparent;color:inherit;border-color:#bbb}
+label{display:block;margin-top:24px}input{width:100%;accent-color:#614ac2;margin:14px 0}.meter{height:10px;background:#e3dfec;overflow:hidden;border-radius:5px}
+.meter span{display:block;width:0;height:100%;background:#614ac2}#status{min-height:48px}small,footer{font-size:12px;color:#62646c}footer{border-top:1px solid #ccc;padding-top:18px}
+@media(prefers-color-scheme:dark){:root{color:#f4f4f5;background:#202324}section{background:#292c2d;border-color:#414445}small,footer{color:#b9b9c3}.meter{background:#414445}}
+</style>
+<header><strong>iHearYou</strong></header>
+<h1>Speaker iPhone.</h1>
+<p>Dengarkan suara mikrofon yang sudah dibersihkan oleh iHearYou di Mac.</p>
+<section>
+  <div class="controls"><button id="listen">Dengarkan</button><button id="stop" disabled>Putuskan</button></div>
+  <p id="status" role="status">Aktifkan mikrofon Mac/USB/Bluetooth di iHearYou, lalu ketuk Dengarkan.</p>
+  <div class="meter" role="meter" aria-label="Level suara bersih" aria-valuemin="-90" aria-valuemax="0" aria-valuenow="-90"><span id="level"></span></div>
+  <label for="volume">Volume <small id="volumeText">50%</small></label>
+  <input id="volume" type="range" min="0" max="100" value="50">
+  <small id="received">Belum terhubung</small>
+</section>
+<p>Mac dan iPhone harus berada di jaringan lokal yang sama. Biarkan tab Safari ini terbuka dan layar menyala. Gunakan volume rendah atau earphone agar suara speaker tidak tertangkap kembali oleh mikrofon.</p>
+<p><small>Penerima ini hanya untuk mendengar hasil mikrofon iHearYou. Untuk memakai mikrofon Continuity pada iPhone yang sama, putuskan penerima terlebih dahulu. Audio dikirim langsung melalui jaringan lokal; tautan ini memberi akses mendengarkan sampai penerima dimatikan di Mac.</small></p>
+<footer>Dibuat oleh i729 · Tanpa trial</footer>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let context, gain, controller, reader, wakeLock, nextTime = 0, total = 0, running = false, runID = 0;
+let nodes = new Set();
+function status(text) { $('status').textContent = text; }
+function stop(message = 'Terputus. Ketuk Dengarkan untuk menyambung kembali.') {
+  runID++;
+  running = false;
+  controller?.abort(); controller = null;
+  reader?.cancel().catch(() => {}); reader = null;
+  nodes.forEach(node => { try { node.stop(); } catch (_) {} }); nodes.clear();
+  const oldContext = context; context = null;
+  oldContext?.close().catch(() => {});
+  wakeLock?.release().catch(() => {}); wakeLock = null;
+  $('listen').disabled = false; $('stop').disabled = true;
+  $('level').style.width = '0%';
+  document.querySelector('.meter').setAttribute('aria-valuenow', '-90');
+  $('received').textContent = 'Belum terhubung'; status(message);
+}
+function schedule(bytes) {
+  if (!context || !running) return;
+  const count = bytes.byteLength / 4;
+  if (!count) return;
+  // Drop excessive backlog rather than turn a poor connection into a long delay.
+  if (nextTime - context.currentTime > 0.4) {
+    nodes.forEach(node => { try { node.stop(); } catch (_) {} }); nodes.clear();
+    nextTime = context.currentTime + 0.12;
+  }
+  const buffer = context.createBuffer(1, count, 48000);
+  const channel = buffer.getChannelData(0), view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let energy = 0;
+  for (let i = 0; i < count; i++) {
+    const value = view.getFloat32(i * 4, true);
+    channel[i] = Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
+    energy += channel[i] * channel[i];
+  }
+  const source = context.createBufferSource(); source.buffer = buffer; source.connect(gain);
+  nodes.add(source); source.onended = () => { nodes.delete(source); source.disconnect(); };
+  nextTime = Math.max(nextTime, context.currentTime + 0.08);
+  source.start(nextTime); nextTime += count / 48000;
+  total += count;
+  const db = Math.max(-90, 20 * Math.log10(Math.max(1e-9, Math.sqrt(energy / count))));
+  $('level').style.width = Math.max(0, Math.min(100, (db + 60) / 60 * 100)) + '%';
+  document.querySelector('.meter').setAttribute('aria-valuenow', db.toFixed(0));
+  $('received').textContent = 'Terhubung · ' + (total / 48000).toFixed(1) + ' detik diterima';
+}
+$('listen').onclick = async () => {
+  if (running) return;
+  const currentRun = ++runID;
+  running = true; $('listen').disabled = true; $('stop').disabled = false; total = 0;
+  try {
+    const AudioContextType = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextType) throw Error('Browser ini tidak mendukung audio. Gunakan Safari terbaru.');
+    // Start audio directly from the tap, before awaiting any network operation.
+    context = new AudioContextType(); gain = context.createGain();
+    gain.gain.value = Number($('volume').value) / 100; gain.connect(context.destination);
+    await context.resume();
+    if (!running || currentRun !== runID) return;
+    if (context.state !== 'running') throw Error('Audio belum aktif. Ketuk Dengarkan lagi.');
+    controller = new AbortController();
+    status('Menyambungkan ke iHearYou di Mac…');
+    const response = await fetch(new URL('stream', location.href), {cache: 'no-store', signal: controller.signal});
+    if (!running || currentRun !== runID) { response.body?.cancel(); return; }
+    if (!response.ok) throw Error(response.status === 409 ? 'Tab lain sedang mendengarkan. Putuskan tab itu dahulu.' : 'Penerima Mac tidak tersedia. Aktifkan ulang dan buka tautan terbaru.');
+    if (!response.body?.getReader) throw Error('Browser ini belum mendukung stream audio. Gunakan Safari terbaru.');
+    reader = response.body.getReader(); nextTime = context.currentTime + 0.12;
+    if (navigator.wakeLock && window.isSecureContext) {
+      navigator.wakeLock.request('screen').then(lock => { if (running) wakeLock = lock; else lock.release(); }).catch(() => {});
+    }
+    status('Tersambung. Bicara ke mikrofon Mac/USB/Bluetooth; suara bersih diputar di sini.');
+    let tail = new Uint8Array(0);
+    while (running && currentRun === runID) {
+      const {value, done} = await reader.read();
+      if (!running || currentRun !== runID) return;
+      if (done) break;
+      if (!value?.length) continue;
+      const joined = new Uint8Array(tail.length + value.length); joined.set(tail); joined.set(value, tail.length);
+      const complete = joined.length - joined.length % 4;
+      // A network read may combine many packets; limit scheduling chunks to 40 ms.
+      for (let offset = 0; offset < complete; offset += 1920 * 4) schedule(joined.subarray(offset, Math.min(complete, offset + 1920 * 4)));
+      tail = joined.slice(complete);
+    }
+    if (running && currentRun === runID) stop('Sambungan Mac terputus. Aktifkan penerima di Mac dan gunakan tautan terbaru.');
+  } catch (error) {
+    if (running && currentRun === runID) stop('Belum bisa mendengar: ' + error.message);
+  }
+};
+$('stop').onclick = () => stop();
+$('volume').oninput = () => { $('volumeText').textContent = $('volume').value + '%'; if (gain && context) gain.gain.value = Number($('volume').value) / 100; };
+document.addEventListener('visibilitychange', () => { if (document.hidden && running) stop('Penerima dijeda saat tab ditutup atau layar dikunci. Buka tab ini dan ketuk Dengarkan lagi.'); });
+window.addEventListener('pagehide', () => stop());
+</script>
+</html>
