@@ -17,3 +17,14 @@ The previous installed version demonstrated physical microphone capture, paired 
 The app is tested on Apple Silicon macOS. Driver builds for arm64 and x86_64; app runtime is arm64. Ad-hoc signing is for local use and is not Developer ID notarization. Rebuilding or changing bundle identity may require macOS microphone permission again.
 
 Noise reduction does not guarantee silence from every clap, isolate an enrolled speaker, repair clipping or eliminate heavy reverberation. Controlled fixture measurements do not establish equivalence to Krisp. No paid MargVoice task or project recording is submitted during testing. Headphone monitoring needs physical headphones; its independent output lane is covered by tests.
+
+## Final build and interaction evidence
+
+- Production build and an independent clean source archive both successfully built app, icon, and universal driver. The clean archive downloaded its own official model/runtime and verified checksums. App and nested libraries pass strict local code-signature verification.
+- Installed process loads sherpa-onnx and ONNX Runtime from its own Frameworks folder, not the workspace vendor directory.
+- Compact controls, gear-to-settings, Light/Dark/System selection and persistence were exercised. Automatic duplicate SwiftUI Settings scene was removed. Closing Settings keeps the floating panel. First-click floating logo opens compact controls after the panel was made key-capable and accepts first mouse events.
+- Floating control visibly shows current microphone state, timer and output meter. Its initial position is clamped to the screen and drag handle uses native window dragging. Screen changes and all Spaces configurations were not exhaustively exercised.
+- Virtual microphone receiver: 139,200 samples at 48 kHz during three seconds, nonzero signal, ROUTING PROBE PASS. RMS -82.86 dBFS / peak 0.00219 reflect quiet ambient input during the probe, not a clap attenuation comparison.
+- Brave local browser recorder received iHearYou Microphone (Virtual); its meter reached -34 dBFS. Record, stop and download completed. Exported WebM decoded as Opus, 48 kHz stereo, 8.4 seconds with nonzero audio. Native WAV is mono; browser channel count depends on its device/codec support. No browser recording was submitted to MargVoice or uploaded to GitHub.
+- Source upload is limited to application, DSP, tests, required driver source, license/model cards, header and build scripts, icon and documentation. Runtime/model files are obtained through pinned checksum downloads. Recordings, fixtures, logs, credentials, local preferences and original image provenance metadata are excluded. Git author is i729 using a noreply address.
+- Local installed bundle retains its pre-existing macOS identity for upgrade compatibility; distributed source uses the i729 identifier. A rebuilt ad-hoc binary may still ask the user to allow microphone access again.

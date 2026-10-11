@@ -22,3 +22,18 @@ Vendor/Sherpa/lib/
 Vendor/DPDFNet/*.onnx
 Sources/DeepFilter/
 ChatGPT Image*.png
+# Local experiments are not required by the production build.
+scripts/DFVariantProbe.c
+scripts/RNNoiseReference.c
+scripts/build-filter.sh
+scripts/evaluate-alternative-models.py
+scripts/evaluate-cascades.py
+scripts/evaluate-claps.py
+scripts/experimental-transients.py
+scripts/prepare-model.py
+Vendor/BlackHole/*
+!Vendor/BlackHole/BlackHole/
+Vendor/BlackHole/BlackHole/*
+!Vendor/BlackHole/BlackHole/BlackHole.c
+!Vendor/BlackHole/LICENSE
+!Vendor/BlackHole/VERSION
