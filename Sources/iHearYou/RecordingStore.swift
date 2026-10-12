@@ -15,8 +15,9 @@ enum RecordingStore {
     static var folder: URL {
         FileManager.default.urls(for: .musicDirectory, in: .userDomainMask)[0].appendingPathComponent("iHearYou", isDirectory: true)
     }
-    static func list() -> [Recording] {
-        let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])) ?? []
+    static func list() throws -> [Recording] {
+        guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
+        let urls = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])
         return urls.filter { $0.lastPathComponent.hasSuffix("-clean.wav") }.compactMap { url in
             guard let file = try? AVAudioFile(forReading: url) else { return nil }
             let date = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast

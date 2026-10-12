@@ -30,7 +30,7 @@ final class PhoneSpeakerServer {
     func start() throws {
         guard let file = Bundle.main.url(forResource: "PhoneSpeaker", withExtension: "html"),
               FileManager.default.isReadableFile(atPath: file.path) else {
-            throw AudioFailure.message("Halaman speaker iPhone tidak ditemukan di aplikasi.")
+            throw AudioFailure.message(L("The iPhone speaker page is missing from the app.", "Halaman speaker iPhone tidak ditemukan di aplikasi."))
         }
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "0.0.0.0", port: .any)
@@ -48,10 +48,10 @@ final class PhoneSpeakerServer {
                     guard let port = nextListener?.port else { return }
                     let addresses = Self.localAddresses()
                     self.urls = addresses.compactMap { URL(string: "http://\($0):\(port.rawValue)\(self.route)") }
-                    self.emit(error: addresses.isEmpty ? "Mac belum memiliki alamat jaringan lokal. Sambungkan Mac dan iPhone ke Wi-Fi yang sama, lalu aktifkan ulang speaker iPhone." : nil)
+                    self.emit(error: addresses.isEmpty ? L("Your Mac has no local network address. Connect your Mac and iPhone to the same Wi-Fi, then enable iPhone Speaker again.", "Mac belum memiliki alamat jaringan lokal. Sambungkan Mac dan iPhone ke Wi-Fi yang sama, lalu aktifkan ulang speaker iPhone.") : nil)
                 case .failed(let error):
                     self.stopOnQueue()
-                    self.emit(error: "Penerima iPhone tidak bisa dimulai: \(error.localizedDescription)")
+                    self.emit(error: L("Could not start the iPhone receiver: \(error.localizedDescription)", "Penerima iPhone tidak bisa dimulai: \(error.localizedDescription)"))
                 default: break
                 }
             }
@@ -137,12 +137,13 @@ final class PhoneSpeakerServer {
                 self.respond(connection, requestID: requestID, code: "405 Method Not Allowed", body: Data("GET only".utf8)); return
             }
             if parts[1] == Substring(self.route) {
-                let body = Bundle.main.url(forResource: "PhoneSpeaker", withExtension: "html")
-                    .flatMap { try? Data(contentsOf: $0) } ?? Data()
+                let html = Bundle.main.url(forResource: "PhoneSpeaker", withExtension: "html")
+                    .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+                let body = Data(html.replacingOccurrences(of: "__IHEARYOU_LANGUAGE__", with: L10n.language.rawValue).utf8)
                 self.respond(connection, requestID: requestID, code: "200 OK", body: body)
             } else if parts[1] == Substring(self.route + "stream") {
                 guard self.stream == nil else {
-                    self.respond(connection, requestID: requestID, code: "409 Conflict", body: Data("Speaker sedang digunakan oleh tab lain. Putuskan tab itu dahulu.".utf8)); return
+                    self.respond(connection, requestID: requestID, code: "409 Conflict", body: Data(L("Another tab is using the speaker. Disconnect that tab first.", "Speaker sedang digunakan oleh tab lain. Putuskan tab itu dahulu.").utf8)); return
                 }
                 self.requests.removeValue(forKey: requestID)
                 self.stream = connection; self.sending = true; self.sentAt = Date()

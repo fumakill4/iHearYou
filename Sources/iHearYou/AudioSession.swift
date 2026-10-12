@@ -33,11 +33,11 @@ final class AudioSession {
         try AudioDevices.setDevice(engine.inputNode.audioUnit, id: input.id)
         let format = engine.inputNode.outputFormat(forBus: 0)
         guard let modelURL = Bundle.main.url(forResource: "dpdfnet2_48khz_hr", withExtension: "onnx") else {
-            throw AudioFailure.message("Model peredaman tidak ditemukan. Jalankan iHearYou dari bundle aplikasi lengkap.")
+            throw AudioFailure.message(L("Noise reduction model missing. Open iHearYou from the complete app bundle.", "Model peredaman tidak ditemukan. Jalankan iHearYou dari bundle aplikasi lengkap."))
         }
         guard format.channelCount > 0, format.commonFormat == .pcmFormatFloat32, !format.isInterleaved,
               let p = ih_create(format.sampleRate, modelURL.path) else {
-            throw AudioFailure.message("Format mikrofon tidak didukung. Pilih mikrofon lain.")
+            throw AudioFailure.message(L("Unsupported microphone format. Select another microphone.", "Format mikrofon tidak didukung. Pilih mikrofon lain."))
         }
         processor = p
         ih_settings(p, enabled ? 1 : 0, strength, gain, gate ? 1 : 0)
@@ -45,7 +45,7 @@ final class AudioSession {
         do {
             if let virtual { virtualOutput = try VirtualOutput(device: virtual, processor: p) }
             if let monitor {
-                guard !monitor.isOurLoopback else { throw AudioFailure.message("Pilih output selain mikrofon virtual iHearYou agar tidak terjadi feedback.") }
+                guard !monitor.isOurLoopback else { throw AudioFailure.message(L("Select an output other than the iHearYou virtual microphone to avoid feedback.", "Pilih output selain mikrofon virtual iHearYou agar tidak terjadi feedback.")) }
                 monitorEngine = try outputEngine(device: monitor, processor: p, monitor: true)
             }
             // Capture only channel one. Do not average stereo channels that may be out of phase.
@@ -65,7 +65,7 @@ final class AudioSession {
                     guard let self,
                           self.captureEngine === observed || self.monitorEngine === observed,
                           !observed.isRunning else { return }
-                    self.onDeviceFailure?("Konfigurasi audio berubah. Proses dihentikan; pilih perangkat lalu aktifkan lagi.")
+                    self.onDeviceFailure?(L("Audio configuration changed. The session stopped; select a device and start again.", "Konfigurasi audio berubah. Proses dihentikan; pilih perangkat lalu aktifkan lagi."))
                 })
             }
         } catch { stop(); throw error }
@@ -98,7 +98,7 @@ final class AudioSession {
                 do { try writer.write(original: raw, processed: clean) }
                 catch {
                     writer.close(); self.writer = nil
-                    recordingError = "Rekaman dihentikan: \(error.localizedDescription)"
+                    recordingError = L("Recording stopped: \(error.localizedDescription)", "Rekaman dihentikan: \(error.localizedDescription)")
                 }
             }
         }
@@ -113,7 +113,7 @@ final class AudioSession {
                                           isRecording: writer != nil, recordingError: recordingError) }
     }
     func startRecording() throws {
-        guard processor != nil else { throw AudioFailure.message("Aktifkan mikrofon sebelum merekam.") }
+        guard processor != nil else { throw AudioFailure.message(L("Start the microphone before recording.", "Aktifkan mikrofon sebelum merekam.")) }
         try queue.sync { recordingError = nil; writer = try RecordingWriter() }
     }
     @discardableResult func stopRecording() -> URL? {

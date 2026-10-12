@@ -4,15 +4,32 @@ import AVFoundation
 import AppKit
 import CoreAudio
 
-enum Screen: String, CaseIterable { case microphone = "Mikrofon", recordings = "Rekaman", guide = "Panduan" }
+enum Screen: String, CaseIterable {
+    case microphone = "Mikrofon", recordings = "Rekaman", guide = "Panduan"
+    var title: String {
+        switch self {
+        case .microphone: return L("Microphone", "Mikrofon")
+        case .recordings: return L("Recordings", "Rekaman")
+        case .guide: return L("Guide", "Panduan")
+        }
+    }
+}
 enum SuppressionMode: String, CaseIterable {
     case natural = "Natural", balanced = "Seimbang", strong = "Kuat"
+    // Keep persisted preset identifiers compatible with previous app versions.
+    var title: String {
+        switch self {
+        case .natural: return L("Natural", "Natural")
+        case .balanced: return L("Balanced", "Seimbang")
+        case .strong: return L("Strong", "Kuat")
+        }
+    }
     var strength: Float { switch self { case .natural: return 0.65; case .balanced, .strong: return 1 } }
     var explanation: String {
         switch self {
-        case .natural: return "Peredaman hingga 20 dB untuk menjaga karakter suara."
-        case .balanced: return "DPDFNet2 dengan batas peredaman 30 dB."
-        case .strong: return "DPDFNet2 48 kHz dengan peredaman penuh."
+        case .natural: return L("Up to 20 dB of reduction to preserve voice character.", "Peredaman hingga 20 dB untuk menjaga karakter suara.")
+        case .balanced: return L("DPDFNet2 with a 30 dB reduction limit.", "DPDFNet2 dengan batas peredaman 30 dB.")
+        case .strong: return L("DPDFNet2 at 48 kHz with full noise reduction.", "DPDFNet2 48 kHz dengan peredaman penuh.")
         }
     }
 }
@@ -37,6 +54,14 @@ enum SuppressionMode: String, CaseIterable {
     @Published var sessionSeconds = 0.0
     @Published var showFloating: Bool { didSet { UserDefaults.standard.set(showFloating, forKey: "showFloating") } }
     @Published var appearance: AppAppearance { didSet { UserDefaults.standard.set(appearance.rawValue, forKey: "appearance") } }
+    @Published var language: AppLanguage {
+        didSet {
+            UserDefaults.standard.set(language.rawValue, forKey: "language")
+            L10n.language = language
+            error = L10n.retranslate(error, language: language)
+            notice = L10n.retranslate(notice, language: language)
+        }
+    }
     var onShowControls: (() -> Void)?
     var onShowSettings: (() -> Void)?
     @Published var inputDB: Float = -90
@@ -69,6 +94,7 @@ enum SuppressionMode: String, CaseIterable {
     var elapsed: String { String(format: "%02d:%02d", Int(seconds) / 60, Int(seconds) % 60) }
     var sessionElapsed: String { String(format: "%02d:%02d", Int(sessionSeconds) / 60, Int(sessionSeconds) % 60) }
     var permissionDenied: Bool { AVCaptureDevice.authorizationStatus(for: .audio) == .denied || AVCaptureDevice.authorizationStatus(for: .audio) == .restricted }
+    func t(_ english: String, _ indonesian: String) -> String { L10n.text(english, indonesian, language: language) }
 
     private init() {
         let defaults = UserDefaults.standard
@@ -79,6 +105,8 @@ enum SuppressionMode: String, CaseIterable {
         gain = defaults.object(forKey: "gain") as? Double ?? 0
         showFloating = defaults.object(forKey: "showFloating") as? Bool ?? true
         appearance = AppAppearance(rawValue: defaults.string(forKey: "appearance") ?? "") ?? .system
+        language = AppLanguage(rawValue: defaults.string(forKey: "language") ?? "") ?? .english
+        L10n.language = language
         refreshDevices(); refreshRecordings()
         let receiver = phoneSpeaker
         session.onProcessedAudio = { samples in receiver.publish(samples) }
@@ -116,9 +144,10 @@ enum SuppressionMode: String, CaseIterable {
         if active && (inputLost || (monitoring && monitorLost)) {
             let hadRecording = recording
             stop()
-            error = (inputLost ? "Mikrofon terputus." : "Perangkat dengar langsung terputus.")
-                + (hadRecording ? " Rekaman sudah disimpan." : "")
-                + " Pilih perangkat lalu aktifkan kembali mikrofon."
+            error = t((inputLost ? "Microphone disconnected." : "Live monitoring device disconnected.")
+                + (hadRecording ? " Your recording was saved." : "") + " Select a device and start the microphone again.",
+                (inputLost ? "Mikrofon terputus." : "Perangkat dengar langsung terputus.")
+                + (hadRecording ? " Rekaman sudah disimpan." : "") + " Pilih perangkat lalu aktifkan kembali mikrofon.")
         }
         // Keep the device identities used by a running session. A missing unused
         // monitor stays selected until the user changes it or the session stops.
@@ -133,27 +162,27 @@ enum SuppressionMode: String, CaseIterable {
     func selectInput(_ uid: String) {
         guard !starting, uid != inputUID else { return }
         guard let device = microphones.first(where: { $0.uid == uid }) else {
-            error = "Mikrofon tidak tersedia. Muat ulang perangkat lalu pilih kembali."; return
+            error = t("Microphone unavailable. Refresh Devices and select it again.", "Mikrofon tidak tersedia. Muat ulang perangkat lalu pilih kembali."); return
         }
         let usesContinuity = device.transport == kAudioDeviceTransportTypeContinuityCaptureWired
             || device.transport == kAudioDeviceTransportTypeContinuityCaptureWireless
         let receiverStopped = phoneSpeakerEnabled && usesContinuity
         if receiverStopped { setPhoneSpeakerEnabled(false) }
-        changeHardware(description: "Mikrofon diganti ke \(device.name)." + (receiverStopped ? " Penerima Safari dimatikan agar iPhone dapat dipakai sebagai mikrofon." : "")) { inputUID = uid }
+        changeHardware(english: "Microphone changed to \(device.name)." + (receiverStopped ? " Safari listening was turned off so the iPhone can be used as a microphone." : ""), indonesian: "Mikrofon diganti ke \(device.name)." + (receiverStopped ? " Penerima Safari dimatikan agar iPhone dapat dipakai sebagai mikrofon." : "")) { inputUID = uid }
     }
     func selectMonitor(_ uid: String) {
         guard !starting, uid != monitorUID else { return }
         guard let device = headphones.first(where: { $0.uid == uid }) else {
-            error = "Output tidak tersedia. Muat ulang perangkat lalu pilih kembali."; return
+            error = t("Output unavailable. Refresh Devices and select it again.", "Output tidak tersedia. Muat ulang perangkat lalu pilih kembali."); return
         }
-        changeHardware(description: "Speaker diganti ke \(device.name).") { monitorUID = uid }
+        changeHardware(english: "Speaker changed to \(device.name).", indonesian: "Speaker diganti ke \(device.name).") { monitorUID = uid }
     }
     func setMonitoring(_ enabled: Bool) {
         guard !starting, enabled != monitoring else { return }
         guard !enabled || selectedMonitor != nil else {
-            error = "Pilih speaker atau headphone yang tersedia sebelum mengaktifkan dengar langsung."; return
+            error = t("Select an available speaker or headphones before enabling Live Monitoring.", "Pilih speaker atau headphone yang tersedia sebelum mengaktifkan dengar langsung."); return
         }
-        changeHardware(description: enabled ? "Dengar langsung diaktifkan." : "Dengar langsung dimatikan.") { monitoring = enabled }
+        changeHardware(english: enabled ? "Live Monitoring enabled." : "Live Monitoring disabled.", indonesian: enabled ? "Dengar langsung diaktifkan." : "Dengar langsung dimatikan.") { monitoring = enabled }
     }
     func setPhoneSpeakerEnabled(_ enabled: Bool) {
         guard enabled != phoneSpeakerEnabled else { return }
@@ -161,12 +190,12 @@ enum SuppressionMode: String, CaseIterable {
         if enabled {
             guard selectedInput?.transport != kAudioDeviceTransportTypeContinuityCaptureWired,
                   selectedInput?.transport != kAudioDeviceTransportTypeContinuityCaptureWireless else {
-                error = "Untuk Safari pada iPhone yang sama, pilih mikrofon Mac/USB/Bluetooth dahulu. Membuka Safari menjeda mikrofon Continuity iPhone."; return
+                error = t("For Safari on the same iPhone, first select a Mac/USB/Bluetooth microphone. Opening Safari pauses the iPhone Continuity microphone.", "Untuk Safari pada iPhone yang sama, pilih mikrofon Mac/USB/Bluetooth dahulu. Membuka Safari menjeda mikrofon Continuity iPhone."); return
             }
             do {
                 try phoneSpeaker.start()
                 phoneSpeakerEnabled = true
-                notice = "Buka tautan speaker di Safari iPhone pada Wi-Fi yang sama, lalu ketuk Dengarkan."
+                notice = t("Open the speaker link in Safari on your iPhone on the same Wi-Fi, then tap Listen.", "Buka tautan speaker di Safari iPhone pada Wi-Fi yang sama, lalu ketuk Dengarkan.")
             } catch { self.error = error.localizedDescription }
         } else {
             phoneSpeakerEnabled = false; phoneSpeakerURLs = []; phoneSpeakerConnected = false
@@ -177,13 +206,13 @@ enum SuppressionMode: String, CaseIterable {
         guard let url = phoneSpeakerURLs.first else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
-        notice = "Tautan speaker disalin. Buka di Safari iPhone pada Wi-Fi yang sama."
+        notice = t("Speaker link copied. Open it in Safari on your iPhone on the same Wi-Fi.", "Tautan speaker disalin. Buka di Safari iPhone pada Wi-Fi yang sama.")
     }
     func openPhoneSpeakerPreview() {
         guard let url = phoneSpeakerURLs.first else { return }
         NSWorkspace.shared.open(url)
     }
-    private func changeHardware(description: String, apply: () -> Void) {
+    private func changeHardware(english: String, indonesian: String, apply: () -> Void) {
         let resumeSession = active
         let resumeRecording = recording
         if resumeSession { stop() }
@@ -196,16 +225,16 @@ enum SuppressionMode: String, CaseIterable {
             defer { starting = false }
             await startSession()
             guard active else {
-                if resumeRecording { notice = "Rekaman sebelumnya sudah disimpan. Mikrofon belum berhasil diaktifkan kembali." }
+                if resumeRecording { notice = t("Your previous recording was saved. The microphone could not restart.", "Rekaman sebelumnya sudah disimpan. Mikrofon belum berhasil diaktifkan kembali.") }
                 return
             }
             if resumeRecording {
-                toggleRecording()
+                beginRecording()
                 notice = recording
-                    ? description + " Rekaman sebelumnya disimpan; perekaman berlanjut di file baru."
-                    : description + " Rekaman sebelumnya disimpan. Rekaman baru belum dimulai."
+                    ? t(english + " Your previous recording was saved; recording continues in a new file.", indonesian + " Rekaman sebelumnya disimpan; perekaman berlanjut di file baru.")
+                    : t(english + " Your previous recording was saved. A new recording has not started.", indonesian + " Rekaman sebelumnya disimpan. Rekaman baru belum dimulai.")
             } else {
-                notice = description + (virtualMic == nil ? " Pasang driver untuk memakai output di browser." : "")
+                notice = t(english + (virtualMic == nil ? " Install the driver to use the output in your browser." : ""), indonesian + (virtualMic == nil ? " Pasang driver untuk memakai output di browser." : ""))
             }
         }
     }
@@ -231,19 +260,19 @@ enum SuppressionMode: String, CaseIterable {
         default: permitted = false
         }
         guard permitted else {
-            error = "Akses mikrofon belum diizinkan. Buka Pengaturan Privasi, aktifkan iHearYou, lalu coba lagi."
+            error = t("Microphone access is not allowed. Open Privacy Settings, enable iHearYou, and try again.", "Akses mikrofon belum diizinkan. Buka Pengaturan Privasi, aktifkan iHearYou, lalu coba lagi.")
             return
         }
         refreshDevices()
-        guard let input = selectedInput else { error = "Mikrofon terpilih tidak tersedia. Sambungkan mikrofon lalu tekan Muat ulang perangkat."; return }
+        guard let input = selectedInput else { error = t("Selected microphone unavailable. Connect it and click Refresh Devices.", "Mikrofon terpilih tidak tersedia. Sambungkan mikrofon lalu tekan Muat ulang perangkat."); return }
         do {
             let monitor = monitoring ? selectedMonitor : nil
-            if monitoring && monitor == nil { throw AudioFailure.message("Pilih headphone untuk dengar langsung.") }
+            if monitoring && monitor == nil { throw AudioFailure.message(t("Select headphones for Live Monitoring.", "Pilih headphone untuk dengar langsung.")) }
             try session.start(input: input, virtual: virtualMic, monitor: monitor, enabled: suppression, strength: mode.strength, gain: Float(gain), gate: mode == .strong)
             runningInputID = input.id; runningMonitorID = monitor?.id
             active = true
             sessionStarted = Date(); sessionSeconds = 0
-            if virtualMic == nil { notice = "Mode rekaman siap. Pasang driver untuk memakai iHearYou di aplikasi meeting." }
+            if virtualMic == nil { notice = t("Recording is ready. Install the driver to use iHearYou in meeting apps.", "Mode rekaman siap. Pasang driver untuk memakai iHearYou di aplikasi meeting.") }
         } catch { self.error = error.localizedDescription }
     }
     func stop() {
@@ -253,17 +282,27 @@ enum SuppressionMode: String, CaseIterable {
         sessionStarted = nil; sessionSeconds = 0
         inputDB = -90; outputDB = -90; voice = 0
         originalHistory = [Float](repeating: 0, count: 72); cleanHistory = originalHistory
-        if wasRecording { refreshRecordings(); notice = "Rekaman disimpan di Musik/iHearYou." }
+        if wasRecording { refreshRecordings(); notice = t("Recording saved in Music/iHearYou.", "Rekaman disimpan di Musik/iHearYou.") }
     }
     func toggleRecording() {
+        guard !starting else { return }
         error = nil
         if recording {
             session.stopRecording(); recording = false; seconds = 0; refreshRecordings()
-            notice = "Rekaman bersih dan suara asli sudah disimpan."
+            notice = t("Clean and original recordings were saved.", "Rekaman bersih dan suara asli sudah disimpan.")
         } else {
-            do { try session.startRecording(); recording = true; seconds = 0; notice = nil }
-            catch { self.error = error.localizedDescription }
+            if active { beginRecording() }
+            else {
+                Task { @MainActor [self] in
+                    await start()
+                    if active && !recording { beginRecording() }
+                }
+            }
         }
+    }
+    private func beginRecording() {
+        do { try session.startRecording(); recording = true; seconds = 0; notice = nil }
+        catch { self.error = error.localizedDescription }
     }
     private func updateMeters() {
         if Date().timeIntervalSince(lastDeviceRefresh) >= 2 {
@@ -275,23 +314,26 @@ enum SuppressionMode: String, CaseIterable {
             inputDB = snapshot.stats.input_db; outputDB = snapshot.stats.output_db; voice = snapshot.stats.voice_probability
             inputDrops = snapshot.stats.input_drops; seconds = snapshot.recordingSeconds
             if snapshot.stats.processing_errors > 0 {
-                stop(); error = "Mesin peredaman gagal memproses audio. Aktifkan kembali mikrofon."; return
+                stop(); error = t("Noise reduction failed to process audio. Start the microphone again.", "Mesin peredaman gagal memproses audio. Aktifkan kembali mikrofon."); return
             }
             originalHistory.removeFirst(); originalHistory.append(level(inputDB))
             cleanHistory.removeFirst(); cleanHistory.append(level(outputDB))
             if recording && !snapshot.isRecording { recording = false; refreshRecordings() }
-            if let message = snapshot.recordingError { error = message }
+            if let message = snapshot.recordingError { error = L10n.retranslate(message, language: language) }
         }
         if playingURL != nil && player?.isPlaying != true { playingURL = nil; player = nil }
     }
     func level(_ db: Float) -> Float { max(0, min(1, (db + 60) / 60)) }
-    func refreshRecordings() { recordings = RecordingStore.list() }
+    func refreshRecordings() {
+        do { recordings = try RecordingStore.list() }
+        catch { self.error = t("Could not open the recordings folder: \(error.localizedDescription)", "Folder rekaman tidak bisa dibuka: \(error.localizedDescription)") }
+    }
     func play(_ url: URL) {
         if playingURL == url { stopPlayback(); return }
         stopPlayback()
-        guard !active else { error = "Hentikan mikrofon sebelum memutar rekaman agar suara playback tidak tertangkap."; return }
+        guard !active else { error = t("Stop the microphone before playing a recording to avoid capturing playback.", "Hentikan mikrofon sebelum memutar rekaman agar suara playback tidak tertangkap."); return }
         do { player = try AVAudioPlayer(contentsOf: url); player?.play(); playingURL = url }
-        catch { self.error = "Rekaman tidak bisa diputar: \(error.localizedDescription)" }
+        catch { self.error = t("Could not play recording: \(error.localizedDescription)", "Rekaman tidak bisa diputar: \(error.localizedDescription)") }
     }
     func stopPlayback() { player?.stop(); player = nil; playingURL = nil }
     func revealRecordings() {
@@ -308,7 +350,7 @@ enum SuppressionMode: String, CaseIterable {
             if FileManager.default.fileExists(atPath: destination.path) {
                 _ = try FileManager.default.replaceItemAt(destination, withItemAt: copyForReplacement(recording.cleanURL))
             } else { try FileManager.default.copyItem(at: recording.cleanURL, to: destination) }
-            notice = "Rekaman diekspor ke \(destination.lastPathComponent)."
+            notice = t("Recording exported to \(destination.lastPathComponent).", "Rekaman diekspor ke \(destination.lastPathComponent).")
         } catch { self.error = error.localizedDescription }
     }
     private func copyForReplacement(_ source: URL) throws -> URL {
@@ -316,12 +358,12 @@ enum SuppressionMode: String, CaseIterable {
         try FileManager.default.copyItem(at: source, to: temp); return temp
     }
     func installDriver() {
-        guard !active else { error = "Hentikan mikrofon sebelum memasang driver."; return }
+        guard !active else { error = t("Stop the microphone before installing the driver.", "Hentikan mikrofon sebelum memasang driver."); return }
         guard let url = Bundle.main.url(forResource: "iHearYouMicrophone", withExtension: "pkg") else {
-            error = "Installer driver tidak ditemukan. Jalankan scripts/build.sh untuk membuat bundle lengkap."; return
+            error = t("Driver installer missing. Run scripts/build.sh to create the complete app bundle.", "Installer driver tidak ditemukan. Jalankan scripts/build.sh untuk membuat bundle lengkap."); return
         }
         NSWorkspace.shared.open(url)
-        notice = "Ikuti installer macOS. Setelah selesai, muat ulang perangkat. Restart Mac jika driver belum muncul."
+        notice = t("Follow the macOS installer. Refresh Devices afterward. Restart your Mac if the driver does not appear.", "Ikuti installer macOS. Setelah selesai, muat ulang perangkat. Restart Mac jika driver belum muncul.")
     }
     func openPrivacy() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!) }
     func showMainWindow() {
@@ -335,7 +377,7 @@ enum SuppressionMode: String, CaseIterable {
         Task { @MainActor [self] in
             if !active { await start() }
             guard active else { return }
-            guard virtualMic != nil else { error = "Pasang driver iHearYou Microphone untuk merekam melalui browser."; return }
+            guard virtualMic != nil else { error = t("Install the iHearYou Microphone driver to record in your browser.", "Pasang driver iHearYou Microphone untuk merekam melalui browser."); return }
             browserRecorder.open { [weak self] result in
                 switch result {
                 case .success(let url): NSWorkspace.shared.open(url)

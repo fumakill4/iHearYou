@@ -1,40 +1,87 @@
 <!doctype html>
 <!-- iHearYou | Signature: i729 -->
-<html lang="id">
+<html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>iHearYou — Speaker iPhone</title>
+<title>iHearYou — iPhone speaker</title>
 <style>
 :root{font-family:system-ui,sans-serif;color:#20232a;background:#f4f2ed;color-scheme:light dark}
-*{box-sizing:border-box}body{max-width:600px;margin:48px auto;padding:0 22px}h1{font-size:30px;margin-bottom:8px}
+*{box-sizing:border-box}body{max-width:600px;margin:48px auto;padding:0 22px}header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}h1{font-size:30px;margin-bottom:8px}
 p{line-height:1.6}section{padding:24px;background:#fff;border:1px solid #dedbe4;border-radius:12px;margin:24px 0}
 button{font:inherit;padding:13px 20px;border:1px solid #6050bb;border-radius:7px;cursor:pointer;background:#614ac2;color:white}
 button:disabled{opacity:.45;cursor:default}.controls{display:flex;gap:10px;flex-wrap:wrap}#stop{background:transparent;color:inherit;border-color:#bbb}
-label{display:block;margin-top:24px}input{width:100%;accent-color:#614ac2;margin:14px 0}.meter{height:10px;background:#e3dfec;overflow:hidden;border-radius:5px}
+label{display:block;margin-top:24px}input{width:100%;accent-color:#614ac2;margin:14px 0}.language{display:flex;align-items:center;gap:8px;font-size:12px}.language label{margin:0}.language select{font:inherit;padding:6px;border:1px solid #bbb;border-radius:6px}.meter{height:10px;background:#e3dfec;overflow:hidden;border-radius:5px}
 .meter span{display:block;width:0;height:100%;background:#614ac2}#status{min-height:48px}small,footer{font-size:12px;color:#62646c}footer{border-top:1px solid #ccc;padding-top:18px}
 @media(prefers-color-scheme:dark){:root{color:#f4f4f5;background:#202324}section{background:#292c2d;border-color:#414445}small,footer{color:#b9b9c3}.meter{background:#414445}}
 </style>
-<header><strong>iHearYou</strong></header>
-<h1>Speaker iPhone.</h1>
-<p>Dengarkan suara mikrofon yang sudah dibersihkan oleh iHearYou di Mac.</p>
+<header><strong>iHearYou</strong><div class="language"><label for="language" data-i18n="language">Language</label><select id="language"><option value="en" lang="en">English</option><option value="id" lang="id">Bahasa Indonesia</option></select></div></header>
+<h1 data-i18n="heading">iPhone speaker.</h1>
+<p data-i18n="intro">Listen to microphone audio cleaned by iHearYou on your Mac.</p>
 <section>
-  <div class="controls"><button id="listen">Dengarkan</button><button id="stop" disabled>Putuskan</button></div>
-  <p id="status" role="status">Aktifkan mikrofon Mac/USB/Bluetooth di iHearYou, lalu ketuk Dengarkan.</p>
-  <div class="meter" role="meter" aria-label="Level suara bersih" aria-valuemin="-90" aria-valuemax="0" aria-valuenow="-90"><span id="level"></span></div>
-  <label for="volume">Volume <small id="volumeText">50%</small></label>
+  <div class="controls"><button id="listen" data-i18n="listen">Listen</button><button id="stop" disabled data-i18n="disconnect">Disconnect</button></div>
+  <p id="status" role="status">Enable your Mac/USB/Bluetooth microphone in iHearYou, then tap Listen.</p>
+  <div class="meter" role="meter" aria-label="Clean audio level" data-i18n-aria="audioLevel" aria-valuemin="-90" aria-valuemax="0" aria-valuenow="-90"><span id="level"></span></div>
+  <label for="volume"><span data-i18n="volume">Volume</span> <small id="volumeText">50%</small></label>
   <input id="volume" type="range" min="0" max="100" value="50">
-  <small id="received">Belum terhubung</small>
+  <small id="received">Not connected</small>
 </section>
-<p>Mac dan iPhone harus berada di jaringan lokal yang sama. Biarkan tab Safari ini terbuka dan layar menyala. Gunakan volume rendah atau earphone agar suara speaker tidak tertangkap kembali oleh mikrofon.</p>
-<p><small>Penerima ini hanya untuk mendengar hasil mikrofon iHearYou. Untuk memakai mikrofon Continuity pada iPhone yang sama, putuskan penerima terlebih dahulu. Audio dikirim langsung melalui jaringan lokal; tautan ini memberi akses mendengarkan sampai penerima dimatikan di Mac.</small></p>
-<footer>Dibuat oleh i729 · Tanpa trial</footer>
+<p data-i18n="networkHelp">Your Mac and iPhone must be on the same local network. Keep this Safari tab open and the screen on. Use a low volume or earphones so the microphone does not pick up the speaker audio.</p>
+<p><small data-i18n="receiverHelp">This receiver only plays iHearYou microphone output. To use the Continuity microphone on the same iPhone, disconnect the receiver first. Audio is sent directly over the local network; this link grants listening access until the receiver is disabled on your Mac.</small></p>
+<footer data-i18n="footer">Created by i729 · No trial</footer>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
+const messages = {
+  title: ['iHearYou — iPhone speaker', 'iHearYou — Speaker iPhone'],
+  language: ['Language', 'Bahasa'],
+  heading: ['iPhone speaker.', 'Speaker iPhone.'],
+  intro: ['Listen to microphone audio cleaned by iHearYou on your Mac.', 'Dengarkan suara mikrofon yang sudah dibersihkan oleh iHearYou di Mac.'],
+  listen: ['Listen', 'Dengarkan'],
+  disconnect: ['Disconnect', 'Putuskan'],
+  initial: ['Enable your Mac/USB/Bluetooth microphone in iHearYou, then tap Listen.', 'Aktifkan mikrofon Mac/USB/Bluetooth di iHearYou, lalu ketuk Dengarkan.'],
+  audioLevel: ['Clean audio level', 'Level suara bersih'],
+  volume: ['Volume', 'Volume'],
+  notConnected: ['Not connected', 'Belum terhubung'],
+  received: ['Connected · {seconds} seconds received', 'Terhubung · {seconds} detik diterima'],
+  networkHelp: ['Your Mac and iPhone must be on the same local network. Keep this Safari tab open and the screen on. Use a low volume or earphones so the microphone does not pick up the speaker audio.', 'Mac dan iPhone harus berada di jaringan lokal yang sama. Biarkan tab Safari ini terbuka dan layar menyala. Gunakan volume rendah atau earphone agar suara speaker tidak tertangkap kembali oleh mikrofon.'],
+  receiverHelp: ['This receiver only plays iHearYou microphone output. To use the Continuity microphone on the same iPhone, disconnect the receiver first. Audio is sent directly over the local network; this link grants listening access until the receiver is disabled on your Mac.', 'Penerima ini hanya untuk mendengar hasil mikrofon iHearYou. Untuk memakai mikrofon Continuity pada iPhone yang sama, putuskan penerima terlebih dahulu. Audio dikirim langsung melalui jaringan lokal; tautan ini memberi akses mendengarkan sampai penerima dimatikan di Mac.'],
+  footer: ['Created by i729 · No trial', 'Dibuat oleh i729 · Tanpa trial'],
+  disconnected: ['Disconnected. Tap Listen to reconnect.', 'Terputus. Ketuk Dengarkan untuk menyambung kembali.'],
+  unsupported: ['This browser does not support audio. Use the latest Safari.', 'Browser ini tidak mendukung audio. Gunakan Safari terbaru.'],
+  inactiveAudio: ['Audio is not active yet. Tap Listen again.', 'Audio belum aktif. Ketuk Dengarkan lagi.'],
+  connecting: ['Connecting to iHearYou on your Mac…', 'Menyambungkan ke iHearYou di Mac…'],
+  busy: ['Another tab is listening. Disconnect that tab first.', 'Tab lain sedang mendengarkan. Putuskan tab itu dahulu.'],
+  unavailable: ['The Mac receiver is unavailable. Enable it again and open the latest link.', 'Penerima Mac tidak tersedia. Aktifkan ulang dan buka tautan terbaru.'],
+  unsupportedStream: ['This browser does not support audio streaming yet. Use the latest Safari.', 'Browser ini belum mendukung stream audio. Gunakan Safari terbaru.'],
+  connected: ['Connected. Speak into your Mac/USB/Bluetooth microphone; clean audio plays here.', 'Tersambung. Bicara ke mikrofon Mac/USB/Bluetooth; suara bersih diputar di sini.'],
+  ended: ['The Mac connection ended. Enable the receiver on your Mac and use the latest link.', 'Sambungan Mac terputus. Aktifkan penerima di Mac dan gunakan tautan terbaru.'],
+  listenFailed: ['Could not listen yet: {error}', 'Belum bisa mendengar: {error}'],
+  browserError: ['Browser error', 'Kesalahan browser'],
+  paused: ['The receiver paused when the tab was hidden or the screen locked. Open this tab and tap Listen again.', 'Penerima dijeda saat tab disembunyikan atau layar dikunci. Buka tab ini dan ketuk Dengarkan lagi.']
+};
+// An app-selected language initializes each served page; direct file opens use the saved preference.
+const appLanguage = '__IHEARYOU_LANGUAGE__';
+let language = 'en';
+try { const saved = localStorage.getItem('iHearYou.language'); if (saved === 'en' || saved === 'id') language = saved; } catch (_) {}
+if (appLanguage === 'en' || appLanguage === 'id') language = appLanguage;
+const translatedError = key => Object.assign(new Error(), {translationKey: key});
+const errorText = error => error?.translationKey ? T(error.translationKey) : error?.message || T('browserError');
+function T(key, args = {}) { return messages[key][language === 'id' ? 1 : 0].replace(/\{(\w+)\}/g, (_, name) => name === 'error' ? errorText(args[name]) : String(args[name] ?? '')); }
+let currentStatus = {key: 'initial', args: {}};
 let context, gain, controller, reader, wakeLock, nextTime = 0, total = 0, running = false, runID = 0;
 let nodes = new Set();
-function status(text) { $('status').textContent = text; }
-function stop(message = 'Terputus. Ketuk Dengarkan untuk menyambung kembali.') {
+function renderStatus() { $('status').textContent = T(currentStatus.key, currentStatus.args); }
+function status(key, args = {}) { currentStatus = {key, args}; renderStatus(); }
+function renderReceived() { $('received').textContent = running && total > 0 ? T('received', {seconds: (total / 48000).toFixed(1)}) : T('notConnected'); }
+function renderLanguage() {
+  document.documentElement.lang = language; document.title = T('title'); $('language').value = language;
+  document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = T(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-aria]').forEach(e => e.setAttribute('aria-label', T(e.dataset.i18nAria)));
+  renderStatus(); renderReceived();
+}
+$('language').onchange = () => { language = $('language').value; try { localStorage.setItem('iHearYou.language', language); } catch (_) {} renderLanguage(); };
+renderLanguage();
+function stop(message = 'disconnected', args = {}) {
   runID++;
   running = false;
   controller?.abort(); controller = null;
@@ -46,7 +93,7 @@ function stop(message = 'Terputus. Ketuk Dengarkan untuk menyambung kembali.') {
   $('listen').disabled = false; $('stop').disabled = true;
   $('level').style.width = '0%';
   document.querySelector('.meter').setAttribute('aria-valuenow', '-90');
-  $('received').textContent = 'Belum terhubung'; status(message);
+  renderReceived(); status(message, args);
 }
 function schedule(bytes) {
   if (!context || !running) return;
@@ -73,7 +120,7 @@ function schedule(bytes) {
   const db = Math.max(-90, 20 * Math.log10(Math.max(1e-9, Math.sqrt(energy / count))));
   $('level').style.width = Math.max(0, Math.min(100, (db + 60) / 60 * 100)) + '%';
   document.querySelector('.meter').setAttribute('aria-valuenow', db.toFixed(0));
-  $('received').textContent = 'Terhubung · ' + (total / 48000).toFixed(1) + ' detik diterima';
+  renderReceived();
 }
 $('listen').onclick = async () => {
   if (running) return;
@@ -81,24 +128,24 @@ $('listen').onclick = async () => {
   running = true; $('listen').disabled = true; $('stop').disabled = false; total = 0;
   try {
     const AudioContextType = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextType) throw Error('Browser ini tidak mendukung audio. Gunakan Safari terbaru.');
+    if (!AudioContextType) throw translatedError('unsupported');
     // Start audio directly from the tap, before awaiting any network operation.
     context = new AudioContextType(); gain = context.createGain();
     gain.gain.value = Number($('volume').value) / 100; gain.connect(context.destination);
     await context.resume();
     if (!running || currentRun !== runID) return;
-    if (context.state !== 'running') throw Error('Audio belum aktif. Ketuk Dengarkan lagi.');
+    if (context.state !== 'running') throw translatedError('inactiveAudio');
     controller = new AbortController();
-    status('Menyambungkan ke iHearYou di Mac…');
+    status('connecting');
     const response = await fetch(new URL('stream', location.href), {cache: 'no-store', signal: controller.signal});
     if (!running || currentRun !== runID) { response.body?.cancel(); return; }
-    if (!response.ok) throw Error(response.status === 409 ? 'Tab lain sedang mendengarkan. Putuskan tab itu dahulu.' : 'Penerima Mac tidak tersedia. Aktifkan ulang dan buka tautan terbaru.');
-    if (!response.body?.getReader) throw Error('Browser ini belum mendukung stream audio. Gunakan Safari terbaru.');
+    if (!response.ok) throw translatedError(response.status === 409 ? 'busy' : 'unavailable');
+    if (!response.body?.getReader) throw translatedError('unsupportedStream');
     reader = response.body.getReader(); nextTime = context.currentTime + 0.12;
     if (navigator.wakeLock && window.isSecureContext) {
       navigator.wakeLock.request('screen').then(lock => { if (running) wakeLock = lock; else lock.release(); }).catch(() => {});
     }
-    status('Tersambung. Bicara ke mikrofon Mac/USB/Bluetooth; suara bersih diputar di sini.');
+    status('connected');
     let tail = new Uint8Array(0);
     while (running && currentRun === runID) {
       const {value, done} = await reader.read();
@@ -111,14 +158,14 @@ $('listen').onclick = async () => {
       for (let offset = 0; offset < complete; offset += 1920 * 4) schedule(joined.subarray(offset, Math.min(complete, offset + 1920 * 4)));
       tail = joined.slice(complete);
     }
-    if (running && currentRun === runID) stop('Sambungan Mac terputus. Aktifkan penerima di Mac dan gunakan tautan terbaru.');
+    if (running && currentRun === runID) stop('ended');
   } catch (error) {
-    if (running && currentRun === runID) stop('Belum bisa mendengar: ' + error.message);
+    if (running && currentRun === runID) stop('listenFailed', {error});
   }
 };
 $('stop').onclick = () => stop();
 $('volume').oninput = () => { $('volumeText').textContent = $('volume').value + '%'; if (gain && context) gain.gain.value = Number($('volume').value) / 100; };
-document.addEventListener('visibilitychange', () => { if (document.hidden && running) stop('Penerima dijeda saat tab ditutup atau layar dikunci. Buka tab ini dan ketuk Dengarkan lagi.'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && running) stop('paused'); });
 window.addEventListener('pagehide', () => stop());
 </script>
 </html>

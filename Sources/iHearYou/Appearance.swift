@@ -5,6 +5,14 @@ import AppKit
 enum AppAppearance: String, CaseIterable {
     case system = "System", light = "Light", dark = "Dark"
 
+    var title: String {
+        switch self {
+        case .system: return L("System", "Sistem")
+        case .light: return L("Light", "Terang")
+        case .dark: return L("Dark", "Gelap")
+        }
+    }
+
     var colorScheme: ColorScheme? {
         switch self { case .system: return nil; case .light: return .light; case .dark: return .dark }
     }

@@ -1,6 +1,8 @@
 # iHearYou acknowledgments
 
-Original iHearYou application and integration copyright (c) 2026 i729, GPL-3.0-or-later. Signature: i729. No Krisp code, model, assets, authentication, or trial logic is used.
+Created by **i729**. Signature: i729.
+
+Original iHearYou application and integration copyright (c) 2026 i729, GPL-3.0-or-later.
 
 ## Shipped engine
 

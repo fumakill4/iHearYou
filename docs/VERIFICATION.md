@@ -1,6 +1,6 @@
 # Verification — 11 October 2026
 
-Signature: i729.
+Created by **i729**. Signature: i729.
 
 ## Current engine checks
 
@@ -16,7 +16,7 @@ The previous installed version demonstrated physical microphone capture, paired 
 
 The app is tested on Apple Silicon macOS. Driver builds for arm64 and x86_64; app runtime is arm64. Ad-hoc signing is for local use and is not Developer ID notarization. Rebuilding or changing bundle identity may require macOS microphone permission again.
 
-Noise reduction does not guarantee silence from every clap, isolate an enrolled speaker, repair clipping or eliminate heavy reverberation. Controlled fixture measurements do not establish equivalence to Krisp. No paid MargVoice task or project recording is submitted during testing. Headphone monitoring needs physical headphones; its independent output lane is covered by tests.
+Noise reduction does not guarantee silence from every clap, isolate an enrolled speaker, repair clipping or eliminate heavy reverberation. Controlled fixture measurements describe the tested inputs and conditions. No paid MargVoice task or project recording is submitted during testing. Headphone monitoring needs physical headphones; its independent output lane is covered by tests.
 
 ## Final build and interaction evidence
 
@@ -41,3 +41,13 @@ Noise reduction does not guarantee silence from every clap, isolate an enrolled 
 - Receiver is opt-in and off on normal launch. A new capability URL is generated at each activation; one receiver is accepted, audio buffering is bounded, stale/backpressured connections close, and turning off closes the listener. IPv4 LAN HTTP transport is unencrypted. There are no upload or stored-recording endpoints. iPhone Safari must remain visible with the screen on.
 - `Real app logo.icns` is copied directly and is byte-identical in the app and expanded installer. The full PKG contains `/Applications/iHearYou.app` and the HAL driver at their documented paths. Expanded app/driver pass strict local code-signature checks; artifact SHA-256 checks passed. Own binary debug records were stripped, and the expanded payload contained none of the personal name/path markers checked.
 - Bluetooth and additional wired headsets are supported when exposed as alive macOS audio devices, but no physical Bluetooth peripheral was connected for this verification. Apple Silicon/macOS 14+ is the supported app target. Release app signing is ad-hoc; the installer is not Developer ID signed or notarized.
+
+
+## 1.3.0 — languages and recording workflow
+
+- Release build and all eight DSP tests pass; the inference model and DSP behavior are unchanged.
+- English/Indonesian UI switching updates native Settings, floating controls, menus, device transport labels, dates, and an existing saved-recording notice. The Indonesian preference persisted after quit/relaunch.
+- Native Record audio is enabled with an available microphone even before capture starts. It started capture and recording, changed to Save recording with a Stop-square icon, saved a valid approximately 44-second mono 48 kHz WAV pair, and returned to Record audio. The library displayed that pair and all 16 earlier pairs; clean-recording playback changed its button to Stop and back.
+- The library refreshes on entry, reports directory failures, shows the saved count, and provides a Stop microphone action before playback.
+- Localization checks pass for both locales, message retranslation, unknown system-error preservation, and 1,000 concurrent accesses. Web script checks pass for both pages, injected app language, unavailable storage, and changing language while preserving recording/listening state. Native OS error details may follow the macOS language.
+- Full PKG app/driver pass strict local signature checks. The public payload uses the i729 identity, contains English and Indonesian permission descriptions and the supplied ICNS, and excludes the personal name/path/token markers checked. All artifact SHA-256 checks pass. Ad-hoc signing is not Developer ID notarization.

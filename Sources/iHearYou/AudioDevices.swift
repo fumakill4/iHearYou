@@ -16,11 +16,11 @@ struct AudioDevice: Identifiable, Hashable {
     var isOurLoopback: Bool { ["iHearYouMic_UID", "iHearYouMic_2_UID"].contains(uid) }
     var connectionLabel: String {
         switch transport {
-        case kAudioDeviceTransportTypeBuiltIn: return "Bawaan Mac"
+        case kAudioDeviceTransportTypeBuiltIn: return L("Built-in Mac", "Bawaan Mac")
         case kAudioDeviceTransportTypeUSB: return "USB"
         case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return "Bluetooth"
         case kAudioDeviceTransportTypeContinuityCaptureWired: return "iPhone · USB"
-        case kAudioDeviceTransportTypeContinuityCaptureWireless: return "iPhone · Nirkabel"
+        case kAudioDeviceTransportTypeContinuityCaptureWireless: return L("iPhone · Wireless", "iPhone · Nirkabel")
         case kAudioDeviceTransportTypeHDMI: return "HDMI"
         case kAudioDeviceTransportTypeDisplayPort: return "DisplayPort"
         case kAudioDeviceTransportTypeAirPlay: return "AirPlay"
@@ -103,10 +103,10 @@ enum AudioDevices {
     static var defaultInput: AudioDeviceID { number(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice) }
     static var defaultOutput: AudioDeviceID { number(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice) }
     static func setDevice(_ unit: AudioUnit?, id: AudioDeviceID) throws {
-        guard let unit else { throw AudioFailure.message("Audio unit tidak tersedia.") }
+        guard let unit else { throw AudioFailure.message(L("Audio unit unavailable.", "Audio unit tidak tersedia.")) }
         var device = id
         let result = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device, UInt32(MemoryLayout<AudioDeviceID>.size))
-        guard result == noErr else { throw AudioFailure.message("Perangkat audio tidak bisa dibuka (\(result)). Coba perangkat lain.") }
+        guard result == noErr else { throw AudioFailure.message(L("Could not open audio device (\(result)). Try another device.", "Perangkat audio tidak bisa dibuka (\(result)). Coba perangkat lain.")) }
     }
 }
 

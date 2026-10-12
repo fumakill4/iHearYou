@@ -1,72 +1,74 @@
 # iHearYou
 
-Dibuat oleh **i729**. Signature: i729.
+Created by **i729**. Signature: i729.
 
-Aplikasi macOS untuk meredam noise mikrofon secara lokal, merekam WAV, dan mengirim hasil ke browser melalui mikrofon virtual. Tidak ada akun, trial, subscription, telemetry, atau layanan unggahan audio. Mode speaker iPhone opsional mengirim hasil langsung melalui jaringan lokal. Implementasi independen memakai model DPDFNet2 resmi; tidak memakai kode, model, atau aset Krisp.
+A macOS app that reduces microphone noise locally, records WAV files, and sends processed audio to browsers through a virtual microphone. No account, trial, subscription, telemetry, or audio upload service is required. The optional iPhone speaker mode streams processed audio directly over the local network. The engine uses the official DPDFNet2 model.
 
-## Penggunaan
+## Getting started
 
-1. Buka iHearYou. Klik ikon menu bar untuk panel kontrol ringkas; roda gigi membuka Settings terpisah.
-2. Pilih mikrofon fisik, lalu aktifkan mikrofon dan izinkan akses ketika macOS meminta.
-3. Pilih **Kuat** untuk seluruh hasil model; **Seimbang** membatasi peredaman sampai 30 dB, **Natural** sampai 20 dB dengan campuran suara asli yang diselaraskan.
-4. Pilih **iHearYou Microphone** sebagai input browser atau aplikasi tujuan. Speaker tetap memakai perangkat fisik.
-5. Rekam WAV di aplikasi atau buka **Rekam lewat browser** untuk perekam lokal, preview, dan unduhan. WAV asli dan bersih disimpan di `~/Music/iHearYou` (48 kHz mono PCM 16-bit).
+1. Open iHearYou. Click its menu bar icon to open the compact control panel; the gear opens a separate Settings window.
+2. Select a physical microphone, enable it, and allow microphone access when macOS asks.
+3. Choose **Strong** for the full model output. **Balanced** caps attenuation at 30 dB; **Natural** caps it at 20 dB by mixing in the aligned original audio.
+4. Select **iHearYou Microphone** as the input in your browser or destination app. Use a physical device for speaker output.
+5. Record WAV files in the app, or open **Record in Browser** for local recording, playback, and download. Original and processed WAV files are saved in `~/Music/iHearYou` as 48 kHz mono, 16-bit PCM.
 
-Settings menyediakan **System, Light, Dark**, floating control, gain, perangkat, rekaman, dan panduan. Floating control muncul secara default; geser titik di atas untuk memindahkan. Tombol iH membuka panel ringkas, tombol mikrofon mengaktifkan sesi, tombol rekam menyimpan WAV. Posisi dan tema tersimpan. Meter dan timer memakai sesi aktual. Shortcut: Cmd+Shift+M mikrofon, Cmd+R rekam/simpan, Cmd+, Settings, Cmd+Q keluar.
+The app defaults to **English**. In version 1.3.0, choose **English** or **Indonesian** in **Settings → Appearance → Language**. The selection is saved immediately and applies to native controls, messages, the browser recorder, and the iPhone Safari receiver. Both browser pages also let you switch their language directly.
 
-Driver mikrofon dipasang melalui installer macOS di Panduan. Installer meminta autentikasi admin untuk menyalin driver ke `/Library/Audio/Plug-Ins/HAL/iHearYouMic.driver` dan memuat ulang CoreAudio. Tutup rekaman/panggilan sebelum memasang. Jika driver sudah tersedia, tidak perlu memasang ulang saat aplikasi diperbarui. Menutup jendela membiarkan aplikasi berjalan di menu bar.
+Settings includes **System, Light, and Dark** themes, the floating control, gain, devices, recordings, and setup guidance. The floating control appears by default; drag the dots at the top to move it. Its iH button opens the compact panel, its microphone button enables the session, and its record button saves WAV files. Position, theme, and language persist across launches. The meter and timer reflect the actual session. Shortcuts: Cmd+Shift+M for the microphone, Cmd+R to record/save, Cmd+, for Settings, and Cmd+Q to quit.
 
-**Dengar langsung** memakai headphone untuk menghindari feedback. Mikrofon dan speaker dapat diganti saat capture; aplikasi menghentikan sesi lama lalu memulai dengan perangkat pilihan. Jika sedang merekam WAV, file lama disimpan dan rekaman berlanjut di file baru. Perangkat yang terputus menghentikan sesi dengan pesan; aplikasi tidak diam-diam meneruskan capture dari mikrofon lain.
+Install the microphone driver using the macOS installer available in **Guide**. The installer asks for administrator authentication to copy the driver to `/Library/Audio/Plug-Ins/HAL/iHearYouMic.driver` and reload CoreAudio. Close calls and recordings before installation. An existing driver does not need to be reinstalled when updating the app. Closing the window leaves the app running in the menu bar.
 
-## iPhone, Bluetooth, dan kabel
+Use headphones for **Live Monitoring** to avoid feedback. You can change microphone and speaker devices during capture; the app stops the old session and starts another with the selected devices. During WAV recording, it saves the current file and continues in a new one. Disconnecting an active device stops the session with a message; capture does not silently switch to a different microphone.
 
-Picker menampilkan input/output hidup yang diberikan macOS, termasuk mikrofon iPhone Continuity, Bluetooth, USB, earphone kabel, dan perangkat audio lain. Label menunjukkan jenis koneksi. Daftar diperbarui setiap dua detik dan lewat notifikasi CoreAudio; tombol **Muat ulang perangkat** tersedia. Perangkat internal/tersembunyi dan loopback iHearYou tidak dijadikan sumber input atau monitor.
+## iPhone, Bluetooth, and wired devices
 
-Mikrofon iPhone memakai [Continuity Camera](https://support.apple.com/102546), lewat USB atau nirkabel dengan Wi-Fi dan Bluetooth aktif serta Apple Account yang sama. Izinkan Trust jika iPhone tersambung melalui USB. Pasangkan perangkat Bluetooth di macOS atau sambungkan kabel sebelum memilihnya. Format Bluetooth bergantung pada profil perangkat; pipeline meresampling input ke 48 kHz.
+Device selectors show the active inputs and outputs provided by macOS, including iPhone Continuity microphones, Bluetooth, USB, wired earphones, and other audio devices. Labels indicate the connection type. The list refreshes every two seconds and through CoreAudio notifications; **Refresh Devices** is also available. Hidden/private engine devices and the iHearYou loopback are excluded from input and monitoring choices.
 
-Untuk **speaker bawaan iPhone**, pilih mikrofon Mac/USB/Bluetooth lalu aktifkan **Speaker iPhone via Safari** di Settings. Sambungkan kedua perangkat ke Wi-Fi yang sama, pindai QR atau salin tautan, dan ketuk **Dengarkan** di Safari iPhone. Biarkan layar dan tab terbuka. Penerima memiliki volume, meter, dan tombol Putuskan. Ini memutar hasil mikrofon iHearYou, bukan seluruh audio sistem Mac. Mikrofon virtual untuk browser Mac tetap tersedia.
+The iPhone microphone uses [Continuity Camera](https://support.apple.com/102546), over USB or wirelessly with Wi-Fi and Bluetooth enabled and the same Apple Account on both devices. Accept the Trust prompt when connecting an iPhone over USB. Pair Bluetooth devices in macOS, or connect wired devices, before selecting them. Bluetooth formats depend on the device profile; the pipeline resamples input to 48 kHz.
 
-Continuity mengekspos mikrofon iPhone, bukan speaker pada perangkat yang diuji. Membuka kunci iPhone menjeda Continuity, sehingga mode Safari memakai mikrofon Mac/USB/Bluetooth. Memilih mikrofon Continuity mematikan penerima Safari. Gunakan earphone atau volume rendah untuk menghindari feedback.
+To use the **iPhone's built-in speaker**, select a Mac, USB, or Bluetooth microphone, then enable **iPhone Speaker via Safari** in Settings. Connect both devices to the same Wi-Fi network, scan the QR code or copy the link, and tap **Listen** in Safari on the iPhone. Keep the tab open and the screen on. The receiver provides volume, a meter, and a **Disconnect** button. It plays processed iHearYou microphone audio; it does not stream all Mac system audio. The virtual microphone remains available to Mac browsers.
 
-Penerima hanya aktif setelah dinyalakan, memakai alamat IPv4 jaringan lokal dan tautan acak baru setiap aktivasi, serta menerima satu tab sekaligus. Audio PCM dikirim langsung melalui HTTP lokal tanpa enkripsi transport; gunakan jaringan yang dipercaya dan perlakukan tautan sebagai akses mendengarkan. Mematikan mode menutup koneksi dan membatalkan tautan. Tidak ada endpoint upload, akses rekaman tersimpan, atau layanan cloud. Penyangga audio dibatasi agar koneksi lambat tidak menumpuk memori atau delay tanpa batas.
+On the tested device, Continuity exposes the iPhone microphone but not its speaker. Unlocking the iPhone pauses Continuity, so Safari speaker mode uses a Mac, USB, or Bluetooth microphone. Selecting a Continuity microphone disables the Safari receiver. Use earphones or low volume to avoid feedback.
 
-## Browser dan privasi
+The receiver runs only when enabled, uses a local IPv4 address and a new random link for each activation, and accepts one tab at a time. PCM audio streams directly over local HTTP without transport encryption; use a trusted network and treat the link as listening access. Disabling the mode closes connections and invalidates the link. There is no upload endpoint, stored-recording access, or cloud service. Audio buffers are bounded so slow connections cannot accumulate unlimited memory or delay.
 
-Perekam lokal berjalan di `127.0.0.1` dengan port dan path acak per peluncuran. Setelah izin browser, perangkat iHearYou dipilih otomatis. Echo cancellation, noise suppression, dan AGC browser dimatikan di halaman lokal agar hasil model tidak diproses dua kali. MediaRecorder menghasilkan WebM/Opus, M4A, atau Ogg sesuai browser. Audio tetap berada di browser sampai diunduh; server tidak menerima audio atau menyediakan endpoint upload.
+## Browsers and privacy
 
-Untuk MargVoice, pilih **iHearYou Microphone** di pengaturan mikrofon Brave dan pilihan input situs bila tersedia, lalu mulai ulang sesi situs. iHearYou tidak memerlukan kredensial atau akses isi project. Aktivitas dan upload di situs pihak ketiga tetap dikendalikan pengguna.
+The local recorder runs on `127.0.0.1` with a random port and path for each launch. After browser permission is granted, it selects the iHearYou device automatically. Browser echo cancellation, noise suppression, and AGC are disabled on the local page to avoid processing the model output twice. MediaRecorder produces WebM/Opus, M4A, or Ogg, depending on the browser. Audio stays in the browser until downloaded; the server does not receive audio or provide an upload endpoint.
 
-## Mesin dan batas hasil
+For MargVoice, select **iHearYou Microphone** in Brave's microphone settings and in the site's input selector when available, then restart the site session. iHearYou does not require credentials or access to project content. Users control activity and uploads on third-party sites.
 
-Input AVAudioEngine → ring SPSC → resampling streaming 48 kHz → DPDFNet2 per 480 sampel → campuran sesuai mode, gain, limiter → WAV dan ring output terpisah. Output virtual memakai AUHAL, monitor memakai AVAudioEngine. Neural inference dan file I/O berjalan pada queue pemrosesan, bukan audio render callback. Jumlah frame dan backlog dibatasi; kesalahan model menghentikan sesi dengan pesan.
+## Engine and measured limits
 
-Model menghasilkan delay 2.400 sampel / 50 ms dalam pipeline streaming; latensi perangkat dan buffer menambah delay. Bypass dan suara asli diselaraskan dengan delay yang sama. Indikator output menunjukkan energi audio, bukan identitas pembicara. Level dB adalah RMS dBFS, bukan persentase noise yang dihapus.
+AVAudioEngine input → SPSC ring → streaming resampling to 48 kHz → DPDFNet2 in 480-sample frames → preset mix, gain, and limiter → WAV files and separate output rings. Virtual output uses AUHAL; monitoring uses AVAudioEngine. Neural inference and file I/O run on the processing queue, outside audio render callbacks. Frame counts and backlog are bounded; model errors stop the session with a message.
 
-Uji speech+clap terkontrol menunjukkan pengurangan efek tepuk sekitar 14,6 dB, dibanding 9,7 dB mesin RNNoise lama. Ini bukan jaminan seluruh noise hilang atau bukti setara Krisp. Pembicara lain, gema berat, clipping, dan noise yang tumpang tindih dengan suara masih dapat terdengar. Lihat `docs/VERIFICATION.md`.
+The streaming pipeline adds 2,400 samples / 50 ms of algorithmic delay, with device and buffer latency adding further delay. Bypass and original audio are aligned to the same delay. The output indicator measures audio energy, not speaker identity. Levels are RMS dBFS, not the percentage of noise removed.
+
+A controlled speech-and-clap test measured about 14.6 dB of clap-effect reduction, compared with 9.7 dB for the previous RNNoise engine. These measurements do not guarantee that all noise disappears. Other speakers, heavy reverberation, clipping, and noise overlapping speech may remain audible. See [verification details](docs/VERIFICATION.md).
 
 ## Build
 
-Apple Silicon Mac, macOS 14+, Xcode Command Line Tools (Swift 5.9+), Python 3 standar.
+Requires an Apple Silicon Mac, macOS 14+, Xcode Command Line Tools (Swift 5.9+), and standard Python 3.
 
 ```sh
 ./scripts/build.sh
 swift test
 ```
 
-Build memverifikasi SHA-256 dan mengambil model/runtime resmi jika belum tersedia. Model DPDFNet2, sherpa-onnx 1.13.8 dan ONNX Runtime 1.28.2 disalin ke bundle; tidak bergantung pada path workspace saat dipasang. **Real app logo.icns** dipakai langsung untuk ikon aplikasi. Driver universal arm64/x86_64 dibangun dari source BlackHole. Debug record dibuang dari binary aplikasi sebelum packaging.
+The build verifies SHA-256 checksums and downloads the official model/runtime when needed. DPDFNet2, sherpa-onnx 1.13.8, and ONNX Runtime 1.28.2 are copied into the bundle; installed apps do not depend on workspace paths. **Real app logo.icns** is used directly as the app icon. The universal arm64/x86_64 driver is built from BlackHole source. Debug records are stripped from the app binary before packaging.
 
-Hasil di `dist/`:
+Version 1.3.0 build artifacts in `dist/`:
 
-- `iHearYou.app`: aplikasi lengkap.
-- `iHearYou-1.2.0.pkg`: installer aplikasi ke `/Applications` dan driver ke `/Library/Audio/Plug-Ins/HAL`; meminta admin dan memuat ulang CoreAudio.
-- `iHearYou-1.2.0-macOS-arm64.zip`: aplikasi tanpa pemasangan driver.
-- `iHearYouMicrophone.pkg`: driver saja, untuk aplikasi yang sudah terpasang.
-- `SHA256SUMS.txt`: checksum artefak Releases.
+- `iHearYou.app`: the complete app.
+- `iHearYou-1.3.0.pkg`: installs the app in `/Applications` and the driver in `/Library/Audio/Plug-Ins/HAL`; requests administrator access and reloads CoreAudio.
+- `iHearYou-1.3.0-macOS-arm64.zip`: the app without driver installation.
+- `iHearYouMicrophone.pkg`: the driver only, for an app already installed.
+- `SHA256SUMS.txt`: release artifact checksums.
 
-Unduh melalui [GitHub Releases](https://github.com/fumakill4/iHearYou/releases). Aplikasi memerlukan Apple Silicon dan macOS 14+. App/library memakai signature ad-hoc; installer belum ditandatangani Developer ID atau dinotarize. Gatekeeper dapat meminta pengguna mengizinkan pembukaan secara manual. Tutup panggilan/rekaman sebelum memasang installer lengkap karena CoreAudio dimuat ulang.
+Download published builds from [GitHub Releases](https://github.com/fumakill4/iHearYou/releases). The app requires Apple Silicon and macOS 14+. The app and libraries use ad-hoc signatures; the installer is not Developer ID signed or notarized. Gatekeeper may require manually allowing the app to open. Close calls and recordings before installing the full package because it reloads CoreAudio.
 
-Source dependency, versi, lisensi, dan checksum dicatat di `THIRD_PARTY_NOTICES.md`. Eksperimen DeepFilterNet/RNNoise di workspace bukan bagian engine build saat ini. Rekaman, model/runtime unduhan, log, cache build, dan data lokal diabaikan Git. Repo menyertakan model card, license, header C, serta script unduhan dengan checksum.
+Dependency sources, versions, licenses, and checksums are recorded in [third-party notices](THIRD_PARTY_NOTICES.md). Local DeepFilterNet/RNNoise experiments are excluded from the current engine build. Recordings, downloaded models/runtimes, logs, build caches, and local data are ignored by Git. The repository includes the model card, licenses, C header, and download scripts with checksums.
 
-## Lisensi dan uninstall
+## License and uninstall
 
-iHearYou GPL-3.0-or-later; DPDFNet2 dan sherpa-onnx Apache-2.0; ONNX Runtime MIT; driver BlackHole GPLv3. Copyright upstream tetap dipertahankan. Untuk uninstall, tutup aplikasi audio dan pindahkan hanya `iHearYouMic.driver` ke Trash melalui Finder, lalu restart Mac. Rekaman tetap di Musik sampai dihapus pengguna.
+iHearYou is GPL-3.0-or-later; DPDFNet2 and sherpa-onnx are Apache-2.0; ONNX Runtime is MIT; the BlackHole driver is GPLv3. Upstream copyrights are retained. To uninstall the driver, close audio apps, move only `iHearYouMic.driver` to the Trash using Finder, and restart the Mac. Recordings remain in the Music folder until deleted by the user.

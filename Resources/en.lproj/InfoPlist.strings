@@ -1,0 +1,3 @@
+/* iHearYou | Signature: i729 */
+"NSMicrophoneUsageDescription" = "iHearYou uses your microphone to reduce noise and record clear audio locally on your Mac.";
+"NSLocalNetworkUsageDescription" = "When iPhone Speaker is enabled, iHearYou sends processed audio directly to Safari on your iPhone over the local network.";

@@ -55,7 +55,9 @@ final class BrowserRecorderServer {
             }
             let valid = text.hasPrefix("GET \(self.route) HTTP/1.")
             let file = Bundle.main.url(forResource: "BrowserRecorder", withExtension: "html")
-            let body = valid ? (file.flatMap { try? Data(contentsOf: $0) } ?? Data("Recorder tidak ditemukan.".utf8)) : Data("Not found".utf8)
+            let html = file.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+                ?? L("Recorder not found.", "Recorder tidak ditemukan.")
+            let body = valid ? Data(html.replacingOccurrences(of: "__IHEARYOU_LANGUAGE__", with: L10n.language.rawValue).utf8) : Data("Not found".utf8)
             let header = "HTTP/1.1 \(valid ? "200 OK" : "404 Not Found")\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(body.count)\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: default-src 'self' blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; connect-src 'none'\r\nConnection: close\r\n\r\n"
             connection.send(content: Data(header.utf8) + body, completion: .contentProcessed { _ in connection.cancel() })
         }

@@ -1,0 +1,3 @@
+/* iHearYou | Signature: i729 */
+"NSMicrophoneUsageDescription" = "iHearYou memakai mikrofon untuk meredam noise dan merekam suara jernih secara lokal di Mac.";
+"NSLocalNetworkUsageDescription" = "Jika speaker iPhone diaktifkan, iHearYou mengirim suara bersih langsung ke Safari iPhone pada jaringan lokal.";

@@ -7,11 +7,13 @@
 <key>CFBundleDisplayName</key><string>iHearYou</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>iHearYou.icns</string>
-<key>CFBundleShortVersionString</key><string>1.2.0</string>
-<key>CFBundleVersion</key><string>3</string>
+<key>CFBundleShortVersionString</key><string>1.3.0</string>
+<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleLocalizations</key><array><string>en</string><string>id</string></array>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
-<key>NSMicrophoneUsageDescription</key><string>iHearYou memakai mikrofon untuk meredam noise dan merekam suara jernih secara lokal di Mac.</string>
-<key>NSLocalNetworkUsageDescription</key><string>Jika speaker iPhone diaktifkan, iHearYou mengirim suara bersih langsung ke Safari iPhone pada jaringan lokal.</string>
+<key>NSMicrophoneUsageDescription</key><string>iHearYou uses your microphone to reduce noise and record clear audio locally on your Mac.</string>
+<key>NSLocalNetworkUsageDescription</key><string>When iPhone Speaker is enabled, iHearYou sends processed audio directly to Safari on your iPhone over the local network.</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>NSHumanReadableCopyright</key><string>Copyright © 2026 i729. Signature: i729.</string>

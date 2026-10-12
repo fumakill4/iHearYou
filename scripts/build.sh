@@ -15,6 +15,7 @@ strip -S dist/iHearYou.app/Contents/MacOS/iHearYou
 cp Resources/Info.plist dist/iHearYou.app/Contents/Info.plist
 cp Resources/BrowserRecorder.html dist/iHearYou.app/Contents/Resources/
 cp Resources/PhoneSpeaker.html dist/iHearYou.app/Contents/Resources/
+cp -R Resources/en.lproj Resources/id.lproj dist/iHearYou.app/Contents/Resources/
 cp build/iHearYou.icns dist/iHearYou.app/Contents/Resources/
 cp Vendor/DPDFNet/dpdfnet2_48khz_hr.onnx dist/iHearYou.app/Contents/Resources/
 cp Vendor/DPDFNet/LICENSE dist/iHearYou.app/Contents/Resources/DPDFNet-LICENSE.txt

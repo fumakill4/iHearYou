@@ -9,6 +9,7 @@ import Combine
     private var statusControl: StatusControl?
     private var settingsWindow: NSWindow?
     private var appearanceSubscription: AnyCancellable?
+    private var languageSubscription: AnyCancellable?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { AppModel.shared.shutdown() }
@@ -24,6 +25,13 @@ import Combine
         model.onShowSettings = { [weak self] in self?.showSettings() }
         appearanceSubscription = model.$appearance.removeDuplicates().sink { [weak self] appearance in
             self?.settingsWindow?.appearance = appearance.appKitAppearance
+        }
+        languageSubscription = model.$language.removeDuplicates().sink { [weak self] _ in
+            // Refresh after Published stores the language used by L.
+            DispatchQueue.main.async { [weak self] in
+                self?.installMenus()
+                self?.settingsWindow?.title = L("iHearYou — Settings", "iHearYou — Pengaturan")
+            }
         }
         // Developer smoke test is explicit, never enabled on normal launch.
         if CommandLine.arguments.contains("--audio-smoke-test") {
@@ -51,21 +59,21 @@ import Combine
             item.target = self; item.keyEquivalentModifierMask = modifiers
             appMenu.addItem(item)
         }
-        add("Buka kontrol iHearYou", #selector(openControls))
-        add("Settings…", #selector(showSettings), key: ",")
+        add(L("Open iHearYou controls", "Buka kontrol iHearYou"), #selector(openControls))
+        add(L("Settings…", "Pengaturan…"), #selector(showSettings), key: ",")
         appMenu.addItem(.separator())
-        add("Aktifkan / hentikan mikrofon", #selector(toggleMicrophone), key: "m", modifiers: [.command, .shift])
-        add("Rekam / simpan suara", #selector(toggleRecording), key: "r")
+        add(L("Start / stop microphone", "Aktifkan / hentikan mikrofon"), #selector(toggleMicrophone), key: "m", modifiers: [.command, .shift])
+        add(L("Record / save audio", "Rekam / simpan suara"), #selector(toggleRecording), key: "r")
         appMenu.addItem(.separator())
-        let quit = NSMenuItem(title: "Keluar iHearYou", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L("Quit iHearYou", "Keluar iHearYou"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp; appMenu.addItem(quit)
-        let fileItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
-        let fileMenu = NSMenu(title: "File")
-        fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        let fileItem = NSMenuItem(title: L("File", "Berkas"), action: nil, keyEquivalent: "")
+        let fileMenu = NSMenu(title: L("File", "Berkas"))
+        fileMenu.addItem(NSMenuItem(title: L("Close", "Tutup"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         fileItem.submenu = fileMenu; menuBar.addItem(fileItem)
-        let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
-        let editMenu = NSMenu(title: "Edit")
-        for (title, action, key) in [("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+        let editItem = NSMenuItem(title: L("Edit", "Sunting"), action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: L("Edit", "Sunting"))
+        for (title, action, key) in [(L("Cut", "Potong"), "cut:", "x"), (L("Copy", "Salin"), "copy:", "c"), (L("Paste", "Tempel"), "paste:", "v"), (L("Select All", "Pilih Semua"), "selectAll:", "a")] {
             editMenu.addItem(NSMenuItem(title: title, action: NSSelectorFromString(action), keyEquivalent: key))
         }
         editItem.submenu = editMenu; menuBar.addItem(editItem)
@@ -73,14 +81,14 @@ import Combine
     }
     @objc private func openControls() { AppModel.shared.showMainWindow() }
     @objc private func toggleMicrophone() { AppModel.shared.toggle() }
-    @objc private func toggleRecording() { if AppModel.shared.active { AppModel.shared.toggleRecording() } }
+    @objc private func toggleRecording() { AppModel.shared.toggleRecording() }
 
     @objc private func showSettings() {
         statusControl?.close()
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            window.title = "iHearYou — Settings"
+            window.title = L("iHearYou — Settings", "iHearYou — Pengaturan")
             window.identifier = NSUserInterfaceItemIdentifier("main")
             window.minSize = NSSize(width: 830, height: 650)
             window.isReleasedWhenClosed = false
@@ -107,7 +115,7 @@ import Combine
         if let button = item.button {
             button.target = self
             button.action = #selector(toggle)
-            button.setAccessibilityLabel("iHearYou controls")
+            button.setAccessibilityLabel(model.t("iHearYou controls", "Kontrol iHearYou"))
         }
         popover.behavior = .transient
         popover.animates = false
@@ -123,12 +131,21 @@ import Combine
             self?.item.button?.image = NSImage(systemSymbolName: active ? "waveform.circle.fill" : "waveform.circle",
                                                accessibilityDescription: "iHearYou")
             self?.item.button?.image?.isTemplate = true
-            self?.item.button?.toolTip = active ? "iHearYou — Mikrofon aktif" : "iHearYou — Buka kontrol"
+            self?.refreshLabels(active: active)
         }.store(in: &subscriptions)
         model.$appearance.removeDuplicates().sink { [weak self] appearance in
             self?.popover.appearance = appearance.appKitAppearance
             self?.popover.contentViewController?.view.appearance = appearance.appKitAppearance
         }.store(in: &subscriptions)
+        model.$language.removeDuplicates().sink { [weak self] _ in
+            DispatchQueue.main.async { [weak self] in self?.refreshLabels() }
+        }.store(in: &subscriptions)
+    }
+    private func refreshLabels(active: Bool? = nil) {
+        item.button?.setAccessibilityLabel(model.t("iHearYou controls", "Kontrol iHearYou"))
+        item.button?.toolTip = (active ?? model.active)
+            ? model.t("iHearYou — Microphone active", "iHearYou — Mikrofon aktif")
+            : model.t("iHearYou — Open controls", "iHearYou — Buka kontrol")
     }
     @objc private func toggle() { if popover.isShown { close() } else { show() } }
     func show() {

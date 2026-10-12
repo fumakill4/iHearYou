@@ -13,9 +13,9 @@ final class VirtualOutput {
         scratch.initialize(repeating: 0, count: 16384)
         var description = AudioComponentDescription(componentType: kAudioUnitType_Output, componentSubType: kAudioUnitSubType_HALOutput,
             componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
-        guard let component = AudioComponentFindNext(nil, &description) else { throw AudioFailure.message("CoreAudio output tidak tersedia.") }
+        guard let component = AudioComponentFindNext(nil, &description) else { throw AudioFailure.message(L("CoreAudio output unavailable.", "CoreAudio output tidak tersedia.")) }
         try check(AudioComponentInstanceNew(component, &unit))
-        guard let unit else { throw AudioFailure.message("Output mikrofon virtual tidak tersedia.") }
+        guard let unit else { throw AudioFailure.message(L("Virtual microphone output unavailable.", "Output mikrofon virtual tidak tersedia.")) }
         do {
             var enable: UInt32 = 1, disable: UInt32 = 0
             try check(AudioUnitSetProperty(unit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Output, 0, &enable, 4))
@@ -49,7 +49,7 @@ final class VirtualOutput {
         } catch { stop(); throw error }
     }
     private func check(_ status: OSStatus) throws {
-        guard status == noErr else { throw AudioFailure.message("Output mikrofon virtual gagal (\(status)). Muat ulang perangkat lalu coba lagi.") }
+        guard status == noErr else { throw AudioFailure.message(L("Virtual microphone output failed (\(status)). Refresh Devices and try again.", "Output mikrofon virtual gagal (\(status)). Muat ulang perangkat lalu coba lagi.")) }
     }
     func stop() {
         if let unit { AudioOutputUnitStop(unit); AudioUnitUninitialize(unit); AudioComponentInstanceDispose(unit) }
