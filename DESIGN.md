@@ -13,3 +13,7 @@ The small vertical floating control stays above ordinary windows across Spaces. 
 Settings separates detailed audio controls, recordings and setup guidance. Input and monitor devices can change during capture; the session restarts with the selected devices, saving an active WAV recording and continuing in a new file. Permission, unavailable driver/device, loading, recording and model failures are explicit. Native keyboard focus, shortcuts and minimum settings size support accessibility. Level history represents actual RMS energy rather than a synthetic waveform or identity detector.
 
 The local browser recorder has clear device selection, permission/error states and local playback/download. It does not trigger project submission or upload. The UI filter skills app-builder, antislop and antislop-ui informed the native layout and truthful control states.
+
+## Current pricing and processing constraint
+
+The user explicitly requires iHearYou to remain without subscriptions for the current product scope. Do not introduce subscription billing, trial timers, usage-minute paywalls, or a paid-service dependency for audio processing. Prefer local processing and redistributable dependencies with established provenance; model downloads may be needed for setup, but microphone audio must not require a hosted inference service. Revisit pricing only on an explicit future user request.

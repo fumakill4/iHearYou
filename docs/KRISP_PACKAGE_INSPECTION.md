@@ -32,3 +32,9 @@ Extracted installers, ASAR inventory, application JavaScript, native modules, an
 ## Skill installation
 
 The upstream [morluto catalog](https://github.com/morluto/awesome-reverse-engineering) has no SKILL.md. A global Codex adapter named `awesome-reverse-engineering` was created with the upstream README, CC0 license, and revision provenance. The adapter was validated; it does not automatically install every tool linked by the catalog.
+
+## Follow-up research
+
+The [16 October feature comparison](KRISP_FEATURE_RESEARCH.md) records deeper graph, clipping/gain, quality-mode and target-speaker findings, dependency screening, and an offline AEC feasibility experiment. It distinguishes research evidence from features integrated in the current app.
+
+The user also supplied the older Intel 3.6.8 installer. Its trusted signature/notarization and internal version were verified, and its nested app was inspected locally. Five noise/reverberation model files are byte-identical across these two packages; two human-voice model files differ substantially. Both contain separate AEC reference/microphone paths and clipping detection. The [comparison report](KRISP_FEATURE_RESEARCH.md#comparison-with-the-supplied-older-intel-package) documents the evidence and limits, including why model size or the user's paid-account description cannot establish measured quality by itself. No older app or installer script was run.

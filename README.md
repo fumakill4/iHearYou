@@ -77,3 +77,7 @@ Dependency sources, versions, licenses, and checksums are recorded in [third-par
 ## License and uninstall
 
 iHearYou is GPL-3.0-or-later; DPDFNet2 and sherpa-onnx are Apache-2.0; GTCRN, Silero VAD, and ONNX Runtime are MIT; the BlackHole driver is GPLv3. Upstream copyrights are retained. To uninstall the driver, close audio apps, move only `iHearYouMic.driver` to the Trash using Finder, and restart the Mac. Recordings remain in the Music folder until deleted by the user.
+
+## Audio engineering research
+
+The [Krisp feature comparison and local implementation research](docs/KRISP_FEATURE_RESEARCH.md) covers speaker isolation, playback-reference echo cancellation, clipping protection and device adaptation. It records prototype results and unresolved gates; these are not additional features in the current release. The current product remains without subscriptions as specified in [design constraints](DESIGN.md).
