@@ -13,6 +13,7 @@ folder = root / 'build/final-evaluation'
 folder.mkdir(parents=True, exist_ok=True)
 binary = folder / 'dsp-final-probe'
 model = root / 'Vendor/DPDFNet/dpdfnet2_48khz_hr.onnx'
+vad = root / 'Vendor/Silero/silero_vad.onnx'
 dsp = root / 'Sources/AudioDSP/AudioDSP.c'
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 source_sha = sha(dsp)
@@ -43,14 +44,14 @@ def lag(y, x):
 def process(label, mode, kind, reference=False):
     destination = folder / f'{label}-{kind}.f32'
     command = [str(root / 'build/rnnoise-reference' if reference else binary), str(source / f'{kind}.f32'), str(destination), str(mode)]
-    if not reference: command.append(str(model))
+    if not reference: command.extend([str(model), str(vad)])
     completed = subprocess.run(command, check=True, text=True, capture_output=True)
     stats = None if reference else json.loads(completed.stdout.strip())
     if stats:
         assert stats['processing_errors'] == stats['input_drops'] == stats['io_error'] == 0
         assert stats['input_samples'] == len(speech)
     unaligned = np.fromfile(destination, dtype=np.float32)
-    delay = 960 if reference else 2400
+    delay = 960 if reference else 8672
     audio = unaligned[delay:delay + len(speech)]
     assert len(audio) == len(speech) and np.isfinite(audio).all() and np.max(np.abs(audio)) <= .99
     aligned = folder / f'{label}-{kind}-aligned.f32'
@@ -61,7 +62,7 @@ def process(label, mode, kind, reference=False):
 
 results = {'fixture': baseline_fixture['fixture'], 'events': events, 'input_si_sdr_db': sdr(mixture, speech),
            'sample_rate': 48000, 'production_source_sha256': source_sha, 'model_sha256': sha(model),
-           'probe_sha256': sha(binary), 'production_delay_samples': 2400, 'presets': {}}
+           'probe_sha256': sha(binary), 'production_delay_samples': 8672, 'presets': {}}
 for label, mode, reference in [('rnnoise-reference', 2, True), ('natural', 1, False), ('balanced', 2, False), ('strong', 3, False)]:
     clean, clean_stats = process(label, mode, 'speech', reference)
     mixed, mixed_stats = process(label, mode, 'mixture', reference)
@@ -84,7 +85,7 @@ results['bypass_probe'] = bypass_stats
 assert results['bypass_max_error'] < 1e-6
 assert sha(dsp) == source_sha, 'Production DSP changed during validation; rerun against latest source'
 strong = results['presets']['strong']; reference = results['presets']['rnnoise-reference']
-assert strong['aligned_speech_lag_samples'] == 0, 'The production 50 ms alignment is incorrect'
+assert strong['aligned_speech_lag_samples'] == 0, 'The production 180.67 ms alignment is incorrect'
 assert strong['clap_effect_reduction_db'] > reference['clap_effect_reduction_db'] + 3
 assert min(strong['voiced_event_effect_reduction_db']) > min(reference['voiced_event_effect_reduction_db']) + 3
 assert strong['mixture_output_si_sdr_db'] > reference['mixture_output_si_sdr_db'] + 4
@@ -98,7 +99,7 @@ report = ('Production C DSP validation passed.\n'
           f"speech level change: {strong['speech_level_change_db']:.3f} dB.\n"
           f"Mixture SI-SDR: {strong['mixture_output_si_sdr_db']:.2f} dB "
           f"(RNNoise reference: {reference['mixture_output_si_sdr_db']:.2f} dB).\n"
-          'Verified 2400-sample / 50 ms alignment; bypass exact within 1e-6.\n'
+          'Verified 8672-sample / 180.67 ms alignment; bypass exact within 1e-6.\n'
           'Every production probe returned zero processing errors and dropped input samples.\n'
           'Controlled evidence uses one speech excerpt and one real clap excerpt repeated during six voiced windows.\n')
 (folder / 'report.txt').write_text(report)

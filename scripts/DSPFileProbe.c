@@ -6,10 +6,10 @@
 #include <time.h>
 #include <inttypes.h>
 int main(int argc, char **argv) {
-    if (argc < 5) return 2;
+    if (argc < 6) return 2;
     FILE *in = fopen(argv[1], "rb"), *out = fopen(argv[2], "wb");
     if (!in || !out) return 3;
-    IHProcessor *p = ih_create(48000, argv[4]);
+    IHProcessor *p = argc > 7 && atoi(argv[6]) ? ih_create_headset(48000, argv[4], argv[7], argv[5]) : ih_create(48000, argv[4], argv[5]);
     if (!p) return 4;
     int mode = atoi(argv[3]);
     if (mode < 0 || mode > 3) { ih_destroy(p); fclose(in); fclose(out); return 2; }
@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
         while (ih_next_frame(p, raw, clean)) { fwrite(clean, sizeof(float), 480, out); ++frames; }
     }
     // Flush model lookahead without losing the last spoken syllable in the fixture.
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 22; i++) {
         for (int j = 0; j < 480; j++) block[j] = 0;
         ih_capture(p, block, 480);
         while (ih_next_frame(p, raw, clean)) { fwrite(clean, sizeof(float), 480, out); ++flushed_frames; }

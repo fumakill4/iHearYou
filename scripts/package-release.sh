@@ -27,6 +27,7 @@ pkgbuild --root "$payload" --component-plist build/release-components.plist \
     --scripts scripts/installer --ownership recommended --install-location / \
     "dist/iHearYou-$version.pkg"
 ditto -c -k --norsrc --keepParent "$app" "dist/iHearYou-$version-macOS-arm64.zip"
+sips -s format png "$app/Contents/Resources/iHearYou.icns" --out dist/iHearYou.png >/dev/null
 python3 - "$version" <<'PY'
 import hashlib
 import sys
@@ -34,7 +35,7 @@ from pathlib import Path
 version = sys.argv[1]
 files = [Path(f'dist/iHearYou-{version}.pkg'),
          Path(f'dist/iHearYou-{version}-macOS-arm64.zip'),
-         Path('dist/iHearYouMicrophone.pkg')]
+         Path('dist/iHearYouMicrophone.pkg'), Path('dist/iHearYou.png')]
 Path('dist/SHA256SUMS.txt').write_text(''.join(
     f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in files))
 PY

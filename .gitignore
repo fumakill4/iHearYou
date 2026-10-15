@@ -40,3 +40,7 @@ Vendor/BlackHole/BlackHole/*
 !Vendor/BlackHole/BlackHole/BlackHole.c
 !Vendor/BlackHole/LICENSE
 !Vendor/BlackHole/VERSION
+
+Vendor/Silero/*.onnx
+
+Vendor/GTCRN/*.onnx

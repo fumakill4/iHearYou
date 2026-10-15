@@ -14,8 +14,9 @@ let package = Package(
                 linkerSettings: [.unsafeFlags(["-L", sherpa.appendingPathComponent("lib").path, "-lsherpa-onnx-c-api",
                     "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",
                     "-Xlinker", "-rpath", "-Xlinker", sherpa.appendingPathComponent("lib").path]), .linkedLibrary("c++")]),
-        .executableTarget(name: "iHearYou", dependencies: ["AudioDSP"], path: "Sources/iHearYou",
+        .target(name: "AudioSafety", path: "Sources/AudioSafety", publicHeadersPath: "include"),
+        .executableTarget(name: "iHearYou", dependencies: ["AudioDSP", "AudioSafety"], path: "Sources/iHearYou",
                           linkerSettings: [.linkedFramework("AVFoundation"), .linkedFramework("CoreAudio")]),
-        .testTarget(name: "AudioDSPTests", dependencies: ["AudioDSP"], path: "Tests")
+        .testTarget(name: "AudioDSPTests", dependencies: ["AudioDSP", "AudioSafety", "iHearYou"], path: "Tests")
     ]
 )

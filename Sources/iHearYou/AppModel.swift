@@ -21,15 +21,15 @@ enum SuppressionMode: String, CaseIterable {
         switch self {
         case .natural: return L("Natural", "Natural")
         case .balanced: return L("Balanced", "Seimbang")
-        case .strong: return L("Strong", "Kuat")
+        case .strong: return L("Studio", "Studio")
         }
     }
     var strength: Float { switch self { case .natural: return 0.65; case .balanced, .strong: return 1 } }
     var explanation: String {
         switch self {
-        case .natural: return L("Up to 20 dB of reduction to preserve voice character.", "Peredaman hingga 20 dB untuk menjaga karakter suara.")
-        case .balanced: return L("DPDFNet2 with a 30 dB reduction limit.", "DPDFNet2 dengan batas peredaman 30 dB.")
-        case .strong: return L("DPDFNet2 at 48 kHz with full noise reduction.", "DPDFNet2 48 kHz dengan peredaman penuh.")
+        case .natural: return L("Full neural noise reduction with a gentle speech gate.", "Peredaman neural penuh dengan gerbang ucapan lembut.")
+        case .balanced: return L("Full neural noise reduction with a balanced speech gate.", "Peredaman neural penuh dengan gerbang ucapan seimbang.")
+        case .strong: return L("Full noise reduction, rumble filter and speech-only gate.", "Peredaman penuh, filter dengung, dan gerbang khusus ucapan.")
         }
     }
 }
@@ -81,7 +81,10 @@ enum SuppressionMode: String, CaseIterable {
     private var runningInputID: AudioDeviceID?
     private var runningMonitorID: AudioDeviceID?
     private var timer: Timer?
+    private var bluetoothSeenAt: [String: Date] = [:]
     private var lastDeviceRefresh = Date()
+    private var recoveryGeneration = UUID()
+    private var recoveryTask: Task<Void, Never>?
     private var deviceListener: AudioObjectPropertyListenerBlock?
     private var player: AVAudioPlayer?
     var microphones: [AudioDevice] { devices.inputCandidates }
@@ -89,6 +92,14 @@ enum SuppressionMode: String, CaseIterable {
     var virtualMic: AudioDevice? { devices.first { $0.isOurMic && $0.outputChannels > 0 } }
     var selectedInput: AudioDevice? { microphones.first { $0.uid == inputUID } }
     var selectedMonitor: AudioDevice? { headphones.first { $0.uid == monitorUID } }
+    var isBluetoothInput: Bool {
+        selectedInput?.transport == kAudioDeviceTransportTypeBluetooth || selectedInput?.transport == kAudioDeviceTransportTypeBluetoothLE
+    }
+    var suppressionExplanation: String {
+        isBluetoothInput
+            ? t("Headset noise reduction: optimized for Bluetooth speech; other voices may remain.", "Peredaman headset: dioptimalkan untuk ucapan Bluetooth; suara orang lain masih bisa masuk.")
+            : mode.explanation
+    }
     var canStart: Bool { selectedInput != nil && !starting }
     var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development" }
     var elapsed: String { String(format: "%02d:%02d", Int(seconds) / 60, Int(seconds) % 60) }
@@ -111,7 +122,7 @@ enum SuppressionMode: String, CaseIterable {
         let receiver = phoneSpeaker
         session.onProcessedAudio = { samples in receiver.publish(samples) }
         receiver.onState = { [weak self] state in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.phoneSpeakerURLs = state.urls
                 self.phoneSpeakerConnected = state.connected
@@ -120,15 +131,15 @@ enum SuppressionMode: String, CaseIterable {
         }
         session.onDeviceFailure = { [weak self] message in
             guard let self, self.active else { return }
-            self.stop(); self.error = message; self.refreshDevices()
+            self.reconnectAudio(message: message)
         }
         let meterTimer = Timer(timeInterval: 0.07, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.updateMeters() }
+            Task { @MainActor [weak self] in self?.updateMeters() }
         }
         timer = meterTimer
         RunLoop.main.add(meterTimer, forMode: .common)
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.refreshDevices()
             }
@@ -137,8 +148,42 @@ enum SuppressionMode: String, CaseIterable {
         var a = AudioDevices.address(kAudioHardwarePropertyDevices)
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &a, .main, listener)
     }
+    private func reconnectAudio(message: String) {
+        let resumeRecording = recording
+        let microphoneUID = inputUID
+        stop()
+        starting = true
+        notice = message
+        let generation = recoveryGeneration
+        recoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { if self.recoveryGeneration == generation { self.starting = false; self.recoveryTask = nil } }
+            for attempt in 1...3 {
+                do { try await Task.sleep(nanoseconds: UInt64(attempt) * 500_000_000) }
+                catch { return }
+                guard !Task.isCancelled else { return }
+                self.refreshDevices()
+                guard self.microphones.contains(where: { $0.uid == microphoneUID }) else {
+                    self.error = self.t("Microphone disconnected. Your recording was saved; select a microphone to continue.", "Mikrofon terputus. Rekaman sudah disimpan; pilih mikrofon untuk melanjutkan.")
+                    return
+                }
+                await self.startSession()
+                if self.active {
+                    if resumeRecording { self.beginRecording() }
+                    self.notice = self.t("Audio reconnected." + (resumeRecording ? " Recording continues in a new file." : ""),
+                                         "Audio tersambung kembali." + (resumeRecording ? " Perekaman berlanjut di file baru." : ""))
+                    return
+                }
+            }
+        }
+    }
     func refreshDevices() {
         devices = AudioDevices.list()
+        let bluetoothUIDs = Set(devices.filter {
+            $0.transport == kAudioDeviceTransportTypeBluetooth || $0.transport == kAudioDeviceTransportTypeBluetoothLE
+        }.map(\.uid))
+        bluetoothSeenAt = bluetoothSeenAt.filter { bluetoothUIDs.contains($0.key) }
+        for uid in bluetoothUIDs where bluetoothSeenAt[uid] == nil { bluetoothSeenAt[uid] = Date() }
         let inputLost = selectedInput == nil || selectedInput?.id != runningInputID
         let monitorLost = selectedMonitor == nil || selectedMonitor?.id != runningMonitorID
         if active && (inputLost || (monitoring && monitorLost)) {
@@ -248,7 +293,13 @@ enum SuppressionMode: String, CaseIterable {
         guard !starting && !active else { return }
         starting = true; error = nil; notice = nil
         defer { starting = false }
-        await startSession()
+        for attempt in 0..<3 {
+            if attempt > 0 {
+                do { try await Task.sleep(nanoseconds: 600_000_000) } catch { return }
+            }
+            await startSession()
+            if active || permissionDenied || selectedInput == nil { break }
+        }
     }
     private func startSession() async {
         error = nil; notice = nil
@@ -265,6 +316,18 @@ enum SuppressionMode: String, CaseIterable {
         }
         refreshDevices()
         guard let input = selectedInput else { error = t("Selected microphone unavailable. Connect it and click Refresh Devices.", "Mikrofon terpilih tidak tersedia. Sambungkan mikrofon lalu tekan Muat ulang perangkat."); return }
+        if let seen = bluetoothSeenAt[input.uid] {
+            let remaining = 0.75 - Date().timeIntervalSince(seen)
+            if remaining > 0 {
+                do { try await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000)) }
+                catch { return }
+                refreshDevices()
+                guard selectedInput?.id == input.id else {
+                    error = t("Bluetooth microphone changed while connecting. Select it again.", "Mikrofon Bluetooth berubah saat tersambung. Pilih kembali perangkat.")
+                    return
+                }
+            }
+        }
         do {
             let monitor = monitoring ? selectedMonitor : nil
             if monitoring && monitor == nil { throw AudioFailure.message(t("Select headphones for Live Monitoring.", "Pilih headphone untuk dengar langsung.")) }
@@ -276,6 +339,8 @@ enum SuppressionMode: String, CaseIterable {
         } catch { self.error = error.localizedDescription }
     }
     func stop() {
+        recoveryGeneration = UUID()
+        if recoveryTask != nil { recoveryTask?.cancel(); recoveryTask = nil; starting = false }
         let wasRecording = recording
         session.stop(); active = false; recording = false; seconds = 0
         runningInputID = nil; runningMonitorID = nil
@@ -288,7 +353,13 @@ enum SuppressionMode: String, CaseIterable {
         guard !starting else { return }
         error = nil
         if recording {
-            session.stopRecording(); recording = false; seconds = 0; refreshRecordings()
+            session.stopRecording(); recording = false; seconds = 0
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard let self else { return }
+                self.refreshRecordings()
+                if !self.recording { self.screen = .recordings; self.showSettings() }
+            }
             notice = t("Clean and original recordings were saved.", "Rekaman bersih dan suara asli sudah disimpan.")
         } else {
             if active { beginRecording() }
@@ -331,7 +402,8 @@ enum SuppressionMode: String, CaseIterable {
     func play(_ url: URL) {
         if playingURL == url { stopPlayback(); return }
         stopPlayback()
-        guard !active else { error = t("Stop the microphone before playing a recording to avoid capturing playback.", "Hentikan mikrofon sebelum memutar rekaman agar suara playback tidak tertangkap."); return }
+        guard !recording else { error = t("Save the current recording before playback.", "Simpan rekaman yang sedang berjalan sebelum memutar audio."); return }
+        if active { stop() }
         do { player = try AVAudioPlayer(contentsOf: url); player?.play(); playingURL = url }
         catch { self.error = t("Could not play recording: \(error.localizedDescription)", "Rekaman tidak bisa diputar: \(error.localizedDescription)") }
     }

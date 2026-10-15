@@ -51,3 +51,50 @@ Noise reduction does not guarantee silence from every clap, isolate an enrolled 
 - The library refreshes on entry, reports directory failures, shows the saved count, and provides a Stop microphone action before playback.
 - Localization checks pass for both locales, message retranslation, unknown system-error preservation, and 1,000 concurrent accesses. Web script checks pass for both pages, injected app language, unavailable storage, and changing language while preserving recording/listening state. Native OS error details may follow the macOS language.
 - Full PKG app/driver pass strict local signature checks. The public payload uses the i729 identity, contains English and Indonesian permission descriptions and the supplied ICNS, and excludes the personal name/path/token markers checked. All artifact SHA-256 checks pass. Ad-hoc signing is not Developer ID notarization.
+
+
+## 1.4.0 — 15 October 2026: Bluetooth capture and speech preservation
+
+### Implemented and exercised
+
+- Two host crash reports from this date faulted in MainActor executor checking; one entered through the AppModel timer. Foundation/CoreAudio callbacks now hop to MainActor instead of using `assumeIsolated`.
+- Physical AirPods Pro 2 reproduced AVAudioEngine tap/format mismatch and unsupported-format failures. Input-only AUHAL capture successfully started the same physical AirPods microphone; the user confirmed application stability and a clear Original recording.
+- The initial full-band denoiser damaged that headset's Clean recording. The final Bluetooth profile preserves the headset's voice signal/EQ and uses a quiet-background activity gate. It does not apply another full-band DPDFNet pass to Bluetooth audio. The user-supplied local recording was reprocessed without overwriting its existing original/clean files.
+- Late audio callbacks retain a DSPContext owner. Queue generation/identity checks prevent an obsolete timer or device notification from processing a new session's recording.
+- Hardware configuration changes reconnect the same selected microphone with bounded attempts; active recordings are saved and continued in a new file. Newly detected Bluetooth devices receive a short settling period. A disconnected microphone does not silently select another input.
+- Physical monitoring now uses AUHAL at its device rate, resampled independently of the fixed 48 kHz virtual output. CoreAudio buffer sizes and callback capacities are bounded.
+- Built-in capture enables native acoustic echo processing when the system output is a physical non-Bluetooth device, with native AGC disabled. Physical-only microphone selection excludes desktop loopback sources. A built-in microphone session and live switch to AirPods were observed in the final installed build.
+- Save opens the recording library; playback stops an idle microphone session automatically. WAV finalization drains processing delay so the final word is retained.
+
+### Automated evidence
+
+- `swift test`: 14 tests passed, covering silence, exact delayed bypass, clipping/invalid samples, capture overflow, hardware input rates 8/16/24/32/44.1/48/96/192 kHz, independent output lanes, Bluetooth monitoring-rate conversion, delayed callback ownership, recoverable Objective-C audio exceptions, headset low-band voice preservation, and recording-tail draining.
+- `scripts/evaluate-studio.py`: acceptance passed against the exact production C source hash. It uses the existing Freesound #33711 speech excerpt, an ESC-50 bark, an ESC-50 vacuum, local macOS Glass alert audio, and synthesized fan/hum. No evaluation audio is shipped.
+- In noise-only full-band fixtures, Studio's activity gate closed to digital silence. This is gating during non-speech, not a claim of extraordinary measured acoustic attenuation.
+- Clean full-band speech SI-SDR: 38.43 dB; level change -0.064 dB.
+- Overlapping-noise effect reduction: fan-hum 15.02 dB, dog 17.25 dB, vacuum 12.86 dB, notification 20.38 dB.
+- Overlapping-noise results remain broadly comparable with 1.3.0; the significant additional rejection is during pauses. They do not prove complete isolation in a real room.
+- Local headset regression: 353/353 strong input frames retained within 6 dB; level change -0.000037 dB. This tests preservation of that supplied recording, not headset suppression of every noise.
+- Release app/installer produced and strict nested code-signature verification passed. The app was copied into `/Applications`; the original installed 1.3.0 app remains backed up locally. The existing HAL driver was not replaced or restarted during this update.
+
+### Limits
+
+The full-band algorithmic delay is 8,672 samples (180.67 ms) including fixed model alignment, speech pre-roll, and the linear-phase rumble filter; headset/bypass timelines use the same alignment. Device and buffer latency add to that delay. There is no enrolled-speaker identity model: overlapping human voices cannot be reliably attributed to the owner. Speaker echo, barks, and fan noise overlapping speech may remain. Headset gating preserves audible speech and therefore may also pass a sufficiently loud unwanted headset input. Physical fan/dog rejection in the user's room and audible quality of every new live capture require real-condition listening; fixture results alone do not establish those outcomes.
+
+Krisp package inspection is documented separately in `KRISP_PACKAGE_INSPECTION.md`; extracted proprietary files remain under ignored local build artifacts and are not shipped.
+
+### Bluetooth denoising revision after user feedback
+
+The user confirmed that the interim Bluetooth pass-through/activity-gate profile produced clear, unbroken Clean recordings, but still captured phone-video voices, dogs, and nearby sounds. That profile was insufficient for noise rejection.
+
+The revised headset path uses DPDFNet2 **16 kHz**, with GTCRN as an independent denoised safety path for speech rejected by the primary model. Both models use the existing pinned sherpa-onnx runtime. Their different block sizes and intrinsic delays are aligned in separate FIFOs before interpolation to 48 kHz. A 63-tap bandlimited interpolator and a shorter pre-roll retain the documented 8,672-sample recording alignment. No raw signal is mixed into enabled suppression. Natural permits the greatest speech rescue, Balanced limits it, and Studio caps it most tightly so transient interference cannot reopen the secondary path at full level. A second local VAD evaluates that safety path; neither detector identifies the owner of a voice.
+
+Standalone GTCRN was rejected for the shipped Studio path after the controlled dog mixture achieved only about 2.25 dB of interference-effect reduction. Full-band DPDFNet2 and DPDFNet8 were also unsuitable for the original AirPods example. Narrowband DPDFNet2 preserved the two latest local headset examples much better. The oldest example remains a difficult case for aggressive processing; Natural is the speech-preserving option when Studio attenuates soft speech.
+
+The headset evaluation uses the same locally held public speech, ESC-50 dog/vacuum clips and seeded synthetic fan fixture described above. It compares noise-only and speech-plus-noise streams against an independently processed speech-only stream, with a fixed 8,672-sample compensation for every signal. It uses a bandwidth-matched reference because 16 kHz models retain approximately 8 kHz of bandwidth, even though output WAVs remain 48 kHz. These are controlled fixture results, not a promise of equivalent physical-room performance or complete noise removal. Reproduce with `scripts/evaluate-headset.py` once the local fixtures are present.
+
+Other human voices, including speech from a phone, are still speech to these models. No speaker enrollment or target-speaker separation is implemented; this remains an explicit product gap.
+
+Final revision validation: 15 automated tests passed, including headset denoising, block scheduling, bypass alignment, monitoring rates, and recording-tail draining. Exact-source headset regression passed (AudioDSP SHA-256 `3c6b41546d62882634d3ea72c4ca7bc4c6343a11c64330762d411a4770740df8`). Studio overlapping-interference effect reduction: synthetic fan **15.60 dB**, dog **16.39 dB**, vacuum **12.79 dB**. Speech-only SI-SDR against the bandwidth-matched reference was **21.93 dB**, with **-0.22 dB** level change. Model, processing and input-drop counters were zero throughout. CPU real-time factors were 0.35–0.46 in this local run; device/render latency is additional.
+
+The two latest local headset examples retained bandwidth-matched SI-SDR values of approximately 28.13/29.51 dB and level changes of −0.13/−0.12 dB. Of 220/422 input frames above −40 dBFS, 2/5 were reduced by more than 6 dB; those recordings are not clean laboratory references, so these numbers are preservation diagnostics rather than perceptual scores or proof of noise removal. Original recordings were preserved and were not uploaded.

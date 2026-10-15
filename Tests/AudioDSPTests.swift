@@ -5,8 +5,14 @@ import AudioDSP
 final class AudioDSPTests: XCTestCase {
     let modelPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Vendor/DPDFNet/dpdfnet2_48khz_hr.onnx").path
-    func run(_ input: [Float], rate: Double = 48000, enabled: Bool = true, gain: Float = 0) -> (raw: [Float], clean: [Float]) {
-        let processor = ih_create(rate, modelPath)!
+    let vadPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Vendor/Silero/silero_vad.onnx").path
+    let headsetPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Vendor/GTCRN/gtcrn_simple.onnx").path
+    let narrowbandPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Vendor/DPDFNet/dpdfnet2.onnx").path
+    func run(_ input: [Float], rate: Double = 48000, enabled: Bool = true, gain: Float = 0, headset: Bool = false) -> (raw: [Float], clean: [Float]) {
+        let processor = (headset ? ih_create_headset(rate, narrowbandPath, headsetPath, vadPath) : ih_create(rate, modelPath, vadPath))!
         defer { ih_destroy(processor) }
         ih_settings(processor, enabled ? 1 : 0, 1, gain, 0)
         var raw = [Float](repeating: 0, count: 480), clean = raw, originals: [Float] = [], results: [Float] = []
@@ -26,8 +32,8 @@ final class AudioDSPTests: XCTestCase {
     func testBypassPreservesSamplesAfterDocumentedDelay() {
         let input = (0..<12000).map { Float(sin(Double($0) * .pi * 2 * 220 / 48000)) * 0.1 }
         let output = run(input, enabled: false)
-        XCTAssertEqual(Array(output.clean.prefix(2400)), [Float](repeating: 0, count: 2400))
-        for i in 2400..<output.clean.count { XCTAssertEqual(output.clean[i], input[i - 2400], accuracy: 0.000001) }
+        XCTAssertEqual(Array(output.clean.prefix(Int(ih_delay_samples()))), [Float](repeating: 0, count: Int(ih_delay_samples())))
+        for i in Int(ih_delay_samples())..<output.clean.count { XCTAssertEqual(output.clean[i], input[i - Int(ih_delay_samples())], accuracy: 0.000001) }
         XCTAssertEqual(output.raw, output.clean)
     }
     func testStationaryNoiseIsReducedByRealModel() {
@@ -44,14 +50,78 @@ final class AudioDSPTests: XCTestCase {
         XCTAssertGreaterThan(reduction, 12, "DPDFNet2 should substantially suppress stationary noise")
     }
     func testDifferentHardwareRatesProduce48kFrames() {
-        for rate in [16000.0, 44100.0, 48000.0, 96000.0] {
+        for rate in [8000.0, 16000.0, 24000.0, 32000.0, 44100.0, 48000.0, 96000.0, 192000.0] {
             let output = run([Float](repeating: 0.03, count: Int(rate)), rate: rate)
             XCTAssertGreaterThanOrEqual(output.clean.count, 47520)
             XCTAssertLessThanOrEqual(output.clean.count, 48000)
         }
     }
+    func testHeadsetBypassPreservesLowBandVoiceAndTiming() {
+        let input = (0..<96000).map { Float(sin(Double($0) * .pi * 2 * 180 / 48000)) * 0.12 }
+        let output = run(input, enabled: false, headset: true)
+        XCTAssertEqual(output.raw, output.clean)
+        for index in Int(ih_delay_samples())..<output.clean.count {
+            XCTAssertEqual(output.clean[index], input[index - Int(ih_delay_samples())], accuracy: 0.000001)
+        }
+    }
+    func testHeadsetDenoiserReducesNoiseWithoutBlockSchedulingErrors() {
+        let p = ih_create_headset(48000, narrowbandPath, headsetPath, vadPath)!
+        defer { ih_destroy(p) }
+        ih_settings(p, 1, 1, 0, 0)
+        var seed: UInt32 = 54321
+        var raw = [Float](repeating: 0, count: 480), clean = raw
+        var inputEnergy = 0.0, outputEnergy = 0.0
+        for block in 0..<600 {
+            let input = (0..<480).map { _ -> Float in
+                seed = 1664525 &* seed &+ 1013904223
+                return (Float(seed >> 8) / Float(0xFFFFFF) * 2 - 1) * 0.05
+            }
+            ih_capture(p, input, 480)
+            while ih_next_frame(p, &raw, &clean) != 0 {
+                if block > 100 {
+                    inputEnergy += raw.reduce(0) { $0 + Double($1 * $1) }
+                    outputEnergy += clean.reduce(0) { $0 + Double($1 * $1) }
+                }
+                XCTAssertTrue(clean.allSatisfy { $0.isFinite && abs($0) <= 0.99 })
+            }
+        }
+        XCTAssertGreaterThan(10 * log10(inputEnergy / max(outputEnergy, 1e-16)), 12)
+        XCTAssertEqual(ih_stats(p).processing_errors, 0)
+        XCTAssertEqual(ih_stats(p).input_drops, 0)
+    }
+    func testMonitoringResamples48kOutputForBluetoothRates() {
+        for rate in [8000.0, 16000.0, 24000.0, 32000.0, 44100.0, 96000.0] {
+            let p = ih_create(48000, modelPath, vadPath)!
+            defer { ih_destroy(p) }
+            let frame = [Float](repeating: 0.25, count: 480)
+            for _ in 0..<8 { ih_publish(p, frame, 0, 1) }
+            var output = [Float](repeating: -1, count: Int(rate * 0.04))
+            ih_render_rate(p, &output, UInt32(output.count), 1, rate)
+            XCTAssertTrue(output.allSatisfy { abs($0 - 0.25) < 0.000001 })
+            XCTAssertEqual(ih_stats(p).output_underruns, 0)
+        }
+    }
+    func testRecordingTailCanBeDrainedAfterCaptureStops() {
+        let p = ih_create(48000, modelPath, vadPath)!
+        defer { ih_destroy(p) }
+        ih_settings(p, 0, 1, 0, 1)
+        var input = [Float](repeating: 0.1, count: 9600)
+        input[input.count - 1] = 0.42
+        var raw = [Float](repeating: 0, count: 480), clean = raw, output: [Float] = []
+        for offset in stride(from: 0, to: input.count, by: 480) {
+            ih_capture(p, Array(input[offset..<offset+480]), 480)
+            while ih_next_frame(p, &raw, &clean) != 0 { output += clean }
+        }
+        for _ in 0..<Int((ih_delay_samples() + 479) / 480) + 2 {
+            ih_pad_silence(p)
+            while ih_next_frame(p, &raw, &clean) != 0 { output += clean }
+        }
+        let delay = Int(ih_delay_samples())
+        XCTAssertGreaterThanOrEqual(output.count, delay + input.count)
+        for index in input.indices { XCTAssertEqual(output[delay + index], input[index], accuracy: 0.000001) }
+    }
     func testRoutingLanesAreIndependentAndUnderrunsAreSilent() {
-        let processor = ih_create(48000, modelPath)!
+        let processor = ih_create(48000, modelPath, vadPath)!
         defer { ih_destroy(processor) }
         let input = (0..<480).map { Float($0) / 1000 }
         ih_publish(processor, input, 1, 1)
@@ -68,10 +138,10 @@ final class AudioDSPTests: XCTestCase {
         input[10] = .nan; input[20] = .infinity
         let output = run(input, enabled: false, gain: 12)
         XCTAssertTrue(output.clean.allSatisfy { $0.isFinite && abs($0) <= 0.99 })
-        XCTAssertNil(ih_create(0, modelPath)); XCTAssertNil(ih_create(.nan, modelPath))
+        XCTAssertNil(ih_create(0, modelPath, vadPath)); XCTAssertNil(ih_create(.nan, modelPath, vadPath))
     }
     func testCaptureOverflowNeverExceedsCapacity() {
-        let processor = ih_create(48000, modelPath)!
+        let processor = ih_create(48000, modelPath, vadPath)!
         defer { ih_destroy(processor) }
         let input = [Float](repeating: 0, count: 40000)
         ih_capture(processor, input, 40000)
@@ -82,7 +152,7 @@ final class AudioDSPTests: XCTestCase {
         XCTAssertLessThan(ih_queued_input(processor), 480)
     }
     func testLiveModeChangesAndBypassRemainHealthy() {
-        let processor = ih_create(48000, modelPath)!
+        let processor = ih_create(48000, modelPath, vadPath)!
         defer { ih_destroy(processor) }
         var raw = [Float](repeating: 0, count: 480), clean = raw
         var frames = 0

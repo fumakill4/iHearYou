@@ -20,6 +20,21 @@ def download(url, expected):
 if not model.exists() or digest(model.read_bytes()) != model_hash:
     data = download('https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models/dpdfnet2_48khz_hr.onnx', model_hash)
     model.parent.mkdir(parents=True, exist_ok=True); model.write_bytes(data)
+narrowband = root / 'Vendor/DPDFNet/dpdfnet2.onnx'
+narrowband_hash = 'ce35d6025fc71df0ef10d1540e1b7916837bbfe5f6896deb744508d2cad487a9'
+if not narrowband.exists() or digest(narrowband.read_bytes()) != narrowband_hash:
+    data = download('https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models/dpdfnet2.onnx', narrowband_hash)
+    narrowband.parent.mkdir(parents=True, exist_ok=True); narrowband.write_bytes(data)
+headset = root / 'Vendor/GTCRN/gtcrn_simple.onnx'
+headset_hash = 'e77603ac0c23dac3227dd2d7135b3a585cbee2679048aecfa886657d3ae1b534'
+if not headset.exists() or digest(headset.read_bytes()) != headset_hash:
+    data = download('https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models/gtcrn_simple.onnx', headset_hash)
+    headset.parent.mkdir(parents=True, exist_ok=True); headset.write_bytes(data)
+vad = root / 'Vendor/Silero/silero_vad.onnx'
+vad_hash = '6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396'
+if not vad.exists() or digest(vad.read_bytes()) != vad_hash:
+    data = download('https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad_v5.onnx', vad_hash)
+    vad.parent.mkdir(parents=True, exist_ok=True); vad.write_bytes(data)
 runtime = root / 'Vendor/Sherpa/lib'
 needed = {
     'libsherpa-onnx-c-api.dylib': 'ae729669633008692c670d4e4c942db7ea5bdc38abc2f479516062d48849e9d1',
@@ -35,4 +50,4 @@ if any(not (runtime / name).exists() or digest((runtime / name).read_bytes()) !=
             library = archive.extractfile(member).read()
             if digest(library) != checksum: raise RuntimeError('Runtime checksum mismatch: ' + name)
             (runtime / name).write_bytes(library)
-print('Verified DPDFNet2 48 kHz model; sherpa-onnx 1.13.8 runtime ready.')
+print('Verified DPDFNet2 48/16 kHz, GTCRN 16 kHz, and Silero VAD v5 models; sherpa-onnx 1.13.8 runtime ready.')

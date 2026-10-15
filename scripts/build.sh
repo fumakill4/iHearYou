@@ -18,6 +18,11 @@ cp Resources/PhoneSpeaker.html dist/iHearYou.app/Contents/Resources/
 cp -R Resources/en.lproj Resources/id.lproj dist/iHearYou.app/Contents/Resources/
 cp build/iHearYou.icns dist/iHearYou.app/Contents/Resources/
 cp Vendor/DPDFNet/dpdfnet2_48khz_hr.onnx dist/iHearYou.app/Contents/Resources/
+cp Vendor/DPDFNet/dpdfnet2.onnx dist/iHearYou.app/Contents/Resources/
+cp Vendor/GTCRN/gtcrn_simple.onnx dist/iHearYou.app/Contents/Resources/
+cp Vendor/GTCRN/LICENSE dist/iHearYou.app/Contents/Resources/GTCRN-LICENSE.txt
+cp Vendor/Silero/silero_vad.onnx dist/iHearYou.app/Contents/Resources/
+cp Vendor/Silero/LICENSE dist/iHearYou.app/Contents/Resources/Silero-LICENSE.txt
 cp Vendor/DPDFNet/LICENSE dist/iHearYou.app/Contents/Resources/DPDFNet-LICENSE.txt
 cp Vendor/Sherpa/LICENSE dist/iHearYou.app/Contents/Resources/Sherpa-LICENSE.txt
 cp Vendor/Sherpa/ONNXRuntime-LICENSE dist/iHearYou.app/Contents/Resources/ONNXRuntime-LICENSE.txt

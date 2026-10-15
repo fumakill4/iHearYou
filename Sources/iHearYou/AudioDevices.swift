@@ -36,8 +36,8 @@ struct AudioDevice: Identifiable, Hashable {
 extension Array where Element == AudioDevice {
     // A driver can expose real hardware through a software transport. Channel
     // capability and liveness determine usability; never feed our own output back in.
-    var inputCandidates: [AudioDevice] { filter { $0.isAlive && $0.inputChannels > 0 && !$0.isOurLoopback } }
-    var outputCandidates: [AudioDevice] { filter { $0.isAlive && $0.outputChannels > 0 && !$0.isOurLoopback } }
+    var inputCandidates: [AudioDevice] { filter { $0.isAlive && $0.inputChannels > 0 && !$0.isOurLoopback && !$0.isVirtual && $0.transport != kAudioDeviceTransportTypeAggregate } }
+    var outputCandidates: [AudioDevice] { filter { $0.isAlive && $0.outputChannels > 0 && !$0.isOurLoopback && !$0.isVirtual && $0.transport != kAudioDeviceTransportTypeAggregate } }
 }
 
 enum AudioDevices {

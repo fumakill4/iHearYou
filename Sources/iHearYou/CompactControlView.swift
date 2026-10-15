@@ -74,7 +74,7 @@ struct CompactControlView: View {
                     ForEach(SuppressionMode.allCases, id: \.self) { Text($0.title).tag($0) }
                 }.pickerStyle(.segmented).labelsHidden().disabled(!model.suppression)
                     .accessibilityLabel(model.t("Noise cancellation intensity", "Intensitas peredaman bising"))
-                Text(model.mode.explanation).font(.system(size: 10)).foregroundStyle(Palette.secondary)
+                Text(model.suppressionExplanation).font(.system(size: 10)).foregroundStyle(Palette.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }.padding(20)

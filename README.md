@@ -2,15 +2,15 @@
 
 Created by **i729**. Signature: i729.
 
-A macOS app that reduces microphone noise locally, records WAV files, and sends processed audio to browsers through a virtual microphone. No account, trial, subscription, telemetry, or audio upload service is required. The optional iPhone speaker mode streams processed audio directly over the local network. The engine uses the official DPDFNet2 model.
+A macOS app that reduces microphone noise locally, records WAV files, and sends processed audio to browsers through a virtual microphone. No account, trial, subscription, telemetry, or audio upload service is required. The optional iPhone speaker mode streams processed audio directly over the local network. Physical full-band microphones use DPDFNet2 and Silero VAD. Bluetooth headset microphones use a dedicated 16 kHz DPDFNet2 denoiser with a GTCRN speech-preservation path.
 
 ## Getting started
 
 1. Open iHearYou. Click its menu bar icon to open the compact control panel; the gear opens a separate Settings window.
 2. Select a physical microphone, enable it, and allow microphone access when macOS asks.
-3. Choose **Strong** for the full model output. **Balanced** caps attenuation at 30 dB; **Natural** caps it at 20 dB by mixing in the aligned original audio.
+3. Choose **Studio** for the strongest speech gate. All full-band presets use the denoised signal without mixing raw background noise back in; Natural and Balanced retain a quieter floor. The Bluetooth headset profile uses narrowband neural denoising; Natural allows the strongest speech rescue, Balanced limits it, and Studio prioritizes rejection of interference.
 4. Select **iHearYou Microphone** as the input in your browser or destination app. Use a physical device for speaker output.
-5. Record WAV files in the app, or open **Record in Browser** for local recording, playback, and download. Original and processed WAV files are saved in `~/Music/iHearYou` as 48 kHz mono, 16-bit PCM.
+5. Record WAV files in the app, then press **Save recording** to open the recording library. Play **Clean audio** or **Original audio** to compare; playback stops an idle microphone session automatically to avoid feedback. Or open **Record in Browser** for local recording, playback, and download. Original and processed WAV files are saved in `~/Music/iHearYou` as 48 kHz mono, 16-bit PCM.
 
 The app defaults to **English**. In version 1.3.0, choose **English** or **Indonesian** in **Settings → Appearance → Language**. The selection is saved immediately and applies to native controls, messages, the browser recorder, and the iPhone Safari receiver. Both browser pages also let you switch their language directly.
 
@@ -18,11 +18,11 @@ Settings includes **System, Light, and Dark** themes, the floating control, gain
 
 Install the microphone driver using the macOS installer available in **Guide**. The installer asks for administrator authentication to copy the driver to `/Library/Audio/Plug-Ins/HAL/iHearYouMic.driver` and reload CoreAudio. Close calls and recordings before installation. An existing driver does not need to be reinstalled when updating the app. Closing the window leaves the app running in the menu bar.
 
-Use headphones for **Live Monitoring** to avoid feedback. You can change microphone and speaker devices during capture; the app stops the old session and starts another with the selected devices. During WAV recording, it saves the current file and continues in a new one. Disconnecting an active device stops the session with a message; capture does not silently switch to a different microphone.
+Use headphones for **Live Monitoring** to avoid feedback. You can change microphone and speaker devices during capture; the app stops the old session and starts another with the selected devices. During WAV recording, it saves the current file and continues in a new one. Configuration changes trigger bounded reconnection attempts using the same selected microphone; an active recording is saved and continued in a new file after reconnection. A disconnected microphone stops capture with a message and never silently switches to another input.
 
 ## iPhone, Bluetooth, and wired devices
 
-Device selectors show the active inputs and outputs provided by macOS, including iPhone Continuity microphones, Bluetooth, USB, wired earphones, and other audio devices. Labels indicate the connection type. The list refreshes every two seconds and through CoreAudio notifications; **Refresh Devices** is also available. Hidden/private engine devices and the iHearYou loopback are excluded from input and monitoring choices.
+Device selectors show the active inputs and outputs provided by macOS, including iPhone Continuity microphones, Bluetooth, USB, wired earphones, and other audio devices. Labels indicate the connection type. The list refreshes every two seconds and through CoreAudio notifications; **Refresh Devices** is also available. Virtual inputs, aggregate devices, private engine devices, and loopbacks are excluded from microphone and monitoring choices so desktop audio cannot be selected as a physical microphone.
 
 The iPhone microphone uses [Continuity Camera](https://support.apple.com/102546), over USB or wirelessly with Wi-Fi and Bluetooth enabled and the same Apple Account on both devices. Accept the Trust prompt when connecting an iPhone over USB. Pair Bluetooth devices in macOS, or connect wired devices, before selecting them. Bluetooth formats depend on the device profile; the pipeline resamples input to 48 kHz.
 
@@ -40,29 +40,34 @@ For MargVoice, select **iHearYou Microphone** in Brave's microphone settings and
 
 ## Engine and measured limits
 
-AVAudioEngine input → SPSC ring → streaming resampling to 48 kHz → DPDFNet2 in 480-sample frames → preset mix, gain, and limiter → WAV files and separate output rings. Virtual output uses AUHAL; monitoring uses AVAudioEngine. Neural inference and file I/O run on the processing queue, outside audio render callbacks. Frame counts and backlog are bounded; model errors stop the session with a message.
+Physical microphone input → SPSC ring → streaming resampling to 48 kHz → DPDFNet2 in 480-sample frames → linear-phase 70 Hz rumble filter → speech gate, gain, and limiter → WAV files and separate output rings. Silero VAD classifies input speech before denoising, with pre-roll and a release tail to preserve word boundaries. Built-in microphones also use macOS acoustic echo cancellation with automatic gain disabled when a physical non-Bluetooth system output is available. Bluetooth input and all outputs use AUHAL; monitoring resamples independently to the physical output rate. The headset profile uses 16 kHz DPDFNet2 plus an independently denoised GTCRN safety path when speech would otherwise collapse (bounded most tightly in Studio), with aligned block FIFOs and bandlimited interpolation back to 48 kHz. Neural inference and file I/O run on the processing queue, outside audio render callbacks. Frame counts and backlog are bounded; model errors stop the session with a message.
 
-The streaming pipeline adds 2,400 samples / 50 ms of algorithmic delay, with device and buffer latency adding further delay. Bypass and original audio are aligned to the same delay. The output indicator measures audio energy, not speaker identity. Levels are RMS dBFS, not the percentage of noise removed.
+The streaming pipeline adds 8,672 samples / approximately 180.67 ms of algorithmic delay, with device and buffer latency adding further delay. Bypass and original audio are aligned to the same delay. The activity indicator reflects the speech/activity gate, not an enrolled speaker identity. Levels are RMS dBFS, not the percentage of noise removed.
 
 A controlled speech-and-clap test measured about 14.6 dB of clap-effect reduction, compared with 9.7 dB for the previous RNNoise engine. These measurements do not guarantee that all noise disappears. Other speakers, heavy reverberation, clipping, and noise overlapping speech may remain audible. See [verification details](docs/VERIFICATION.md).
 
+## Recording quality and notification sounds
+
+Studio suppresses non-speech during pauses and reduces background noise from full-band microphone input. Echo cancellation helps reject sounds played through Mac speakers; selecting only physical microphone inputs prevents digital desktop/loopback audio from entering capture. It does not guarantee removal of a notification, bark, or other sound overlapping speech. No speaker enrollment exists: other human voices cannot be distinguished from the user. Bluetooth input uses a separate 16 kHz processing path because the full-band denoiser damaged AirPods speech in testing; its effective bandwidth is approximately 8 kHz even though WAV and virtual output remain 48 kHz. A close microphone and headphones improve isolation.
+
 ## Build
 
-Requires an Apple Silicon Mac, macOS 14+, Xcode Command Line Tools (Swift 5.9+), and standard Python 3.
+Requires an Apple Silicon Mac, macOS 14+, Xcode Command Line Tools (Swift 5.9+), and standard Python 3. An SDK older than macOS 27 can build the same macOS 14+ compatibility paths.
 
 ```sh
 ./scripts/build.sh
 swift test
 ```
 
-The build verifies SHA-256 checksums and downloads the official model/runtime when needed. DPDFNet2, sherpa-onnx 1.13.8, and ONNX Runtime 1.28.2 are copied into the bundle; installed apps do not depend on workspace paths. **Real app logo.icns** is used directly as the app icon. The universal arm64/x86_64 driver is built from BlackHole source. Debug records are stripped from the app binary before packaging.
+The build verifies SHA-256 checksums and downloads the official model/runtime when needed. DPDFNet2 at 48/16 kHz, GTCRN, Silero VAD v5, sherpa-onnx 1.13.8, and ONNX Runtime 1.28.2 are copied into the bundle; installed apps do not depend on workspace paths. **Real app logo.icns** is used directly when present; `icon.png` provides a local build fallback if that file has been removed. The universal arm64/x86_64 driver is built from BlackHole source. Debug records are stripped from the app binary before packaging.
 
-Version 1.3.0 build artifacts in `dist/`:
+Version 1.4.0 build artifacts in `dist/`:
 
 - `iHearYou.app`: the complete app.
-- `iHearYou-1.3.0.pkg`: installs the app in `/Applications` and the driver in `/Library/Audio/Plug-Ins/HAL`; requests administrator access and reloads CoreAudio.
-- `iHearYou-1.3.0-macOS-arm64.zip`: the app without driver installation.
+- `iHearYou-1.4.0.pkg`: installs the app in `/Applications` and the driver in `/Library/Audio/Plug-Ins/HAL`; requests administrator access and reloads CoreAudio.
+- `iHearYou-1.4.0-macOS-arm64.zip`: the app without driver installation.
 - `iHearYouMicrophone.pkg`: the driver only, for an app already installed.
+- `iHearYou.png`: the PNG exported from the current app icon.
 - `SHA256SUMS.txt`: release artifact checksums.
 
 Download published builds from [GitHub Releases](https://github.com/fumakill4/iHearYou/releases). The app requires Apple Silicon and macOS 14+. The app and libraries use ad-hoc signatures; the installer is not Developer ID signed or notarized. Gatekeeper may require manually allowing the app to open. Close calls and recordings before installing the full package because it reloads CoreAudio.
@@ -71,4 +76,4 @@ Dependency sources, versions, licenses, and checksums are recorded in [third-par
 
 ## License and uninstall
 
-iHearYou is GPL-3.0-or-later; DPDFNet2 and sherpa-onnx are Apache-2.0; ONNX Runtime is MIT; the BlackHole driver is GPLv3. Upstream copyrights are retained. To uninstall the driver, close audio apps, move only `iHearYouMic.driver` to the Trash using Finder, and restart the Mac. Recordings remain in the Music folder until deleted by the user.
+iHearYou is GPL-3.0-or-later; DPDFNet2 and sherpa-onnx are Apache-2.0; GTCRN, Silero VAD, and ONNX Runtime are MIT; the BlackHole driver is GPLv3. Upstream copyrights are retained. To uninstall the driver, close audio apps, move only `iHearYouMic.driver` to the Trash using Finder, and restart the Mac. Recordings remain in the Music folder until deleted by the user.

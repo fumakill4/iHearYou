@@ -140,7 +140,7 @@ struct MicrophoneView: View {
                     Picker(model.t("Intensity", "Intensitas"), selection: $model.mode) {
                         ForEach(SuppressionMode.allCases, id: \.self) { Text($0.title).tag($0) }
                     }.pickerStyle(.segmented).frame(width: 250).disabled(!model.suppression)
-                    Text(model.mode.explanation).font(.system(size: 11)).foregroundStyle(Palette.secondary)
+                    Text(model.suppressionExplanation).font(.system(size: 11)).foregroundStyle(Palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }.padding(22).background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
@@ -149,7 +149,7 @@ struct MicrophoneView: View {
                 HStack {
                     Text(model.t("Hear the difference", "Dengar perbedaannya")).font(.system(size: 15, weight: .semibold))
                     Spacer()
-                    Text(model.active ? (model.voice > 0.5 ? model.t("Audio output detected", "Output audio terdeteksi") : model.t("Monitoring audio", "Memantau suara")) : model.t("Start the microphone to monitor audio", "Aktifkan mikrofon untuk memantau"))
+                    Text(model.active ? (model.voice > 0.5 ? model.t("Audio active", "Audio aktif") : model.t("Waiting for speech", "Menunggu ucapan")) : model.t("Start the microphone to monitor audio", "Aktifkan mikrofon untuk memantau"))
                         .font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.72))
                 }
                 SignalTrack(title: model.t("Original audio", "Suara asli"), db: model.inputDB, values: model.originalHistory, color: Color(red: 0.76, green: 0.73, blue: 0.69))
@@ -302,7 +302,7 @@ struct RecordingsView: View {
                 .font(.system(size: 12)).foregroundStyle(Palette.secondary)
             if model.active {
                 HStack {
-                    Text(model.t("Stop the microphone to listen without capturing playback.", "Hentikan mikrofon agar suara playback tidak ikut direkam."))
+                    Text(model.t("Playback stops the microphone automatically to avoid feedback.", "Pemutaran otomatis menghentikan mikrofon agar tidak terjadi feedback."))
                         .font(.system(size: 12)).foregroundStyle(Palette.secondary)
                     Spacer()
                     Button(model.t("Stop microphone", "Hentikan mikrofon")) { model.stop() }.buttonStyle(.bordered)
@@ -331,10 +331,10 @@ struct RecordingsView: View {
                     HStack {
                         Button { model.play(recording.rawURL) } label: {
                             Label(model.playingURL == recording.rawURL ? model.t("Stop", "Hentikan") : model.t("Original audio", "Suara asli"), systemImage: model.playingURL == recording.rawURL ? "stop.fill" : "play.fill")
-                        }.buttonStyle(.bordered).disabled(model.active || !FileManager.default.fileExists(atPath: recording.rawURL.path))
+                        }.buttonStyle(.bordered).disabled(model.recording || !FileManager.default.fileExists(atPath: recording.rawURL.path))
                         Button { model.play(recording.cleanURL) } label: {
                             Label(model.playingURL == recording.cleanURL ? model.t("Stop", "Hentikan") : model.t("Clean audio", "Hasil bersih"), systemImage: model.playingURL == recording.cleanURL ? "stop.fill" : "play.fill")
-                        }.buttonStyle(.borderedProminent).disabled(model.active)
+                        }.buttonStyle(.borderedProminent).disabled(model.recording)
                         Spacer()
                         Button(model.t("Export WAV", "Ekspor WAV")) { model.export(recording) }.buttonStyle(.bordered)
                     }
@@ -361,7 +361,7 @@ struct GuideView: View {
                     .font(.system(size: 13)).foregroundStyle(Palette.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button(model.virtualMic == nil ? model.t("Install microphone driver", "Pasang driver mikrofon") : model.t("Reinstall driver", "Pasang ulang driver")) { model.installDriver() }
-                        .buttonStyle(.borderedProminent).disabled(model.active)
+                        .buttonStyle(.borderedProminent).disabled(model.recording)
                     Button(model.t("Refresh devices", "Muat ulang perangkat")) { model.refreshDevices() }.buttonStyle(.bordered)
                 }
             }.padding(24).background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
